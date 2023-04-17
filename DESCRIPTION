@@ -1,0 +1,21 @@
+Package: bbgraphsR
+Type: Package
+Title: Baseball Graphs (Title Case)
+Version: 0.1.0
+Author: Daniel Hernández
+Maintainer: Daniel Hernández <yourself@somewhere.net>
+Description: This is a package with functions to see the baseball stats from another point of view.
+    The data is gotten from different sources using the baseballr package.
+License: MIT + file LICENSE
+Imports:
+    baseballr,
+    dplyr,
+    highcharter,
+    htmltools,
+    lubridate,
+    pbapply,
+    purrr,
+    tidyr
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.2.3
