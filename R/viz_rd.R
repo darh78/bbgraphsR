@@ -9,7 +9,7 @@
 #'
 #' @importFrom baseballr bref_standings_on_date
 #' @importFrom pbapply pbsapply pblapply
-#' @importFrom dplyr  %>% select group_by mutate ungroup summarise arrange
+#' @importFrom dplyr  %>% select group_by mutate ungroup summarise arrange case_when
 #' @importFrom tidyr separate unite
 #' @importFrom purrr map
 #' @importFrom highcharter hchart hc_tooltip hc_add_theme hc_theme_smpl hc_xAxis hc_yAxis hc_title hc_subtitle hc_credits hc_exporting hw_grid
@@ -25,12 +25,25 @@
 
 viz_rd <- function(team, year) {
 
+  ### Check if arguments are valid ----
+  valid_teams <- c("AL East", "AL Central", "AL West", "AL Overall", "NL East", "NL Central", "NL West", "NL Overall", "MLB")
+  if (!(is.character(team) && ((nchar(team) == 3) | (team %in% valid_teams)))) {
+    stop("The 'team' must be the Baseball Reference MLB team abbreviation or any of these ones: AL East, AL Central, AL West, AL Overall, NL East, NL Central, NL West, NL Overall or MLB")
+  }
+
+  current_year <- as.numeric(format(Sys.Date(), "%Y"))
+  if (!(is.numeric(year) && year >= 1876 && year <= current_year)) {
+    stop(paste0("The 'year' must be a numeric value between 1876 and the last/current MLB season"))
+  }
+
+  # If both arguments are valid, continue with the function
+
   ### Identify 'team' input type and get names of teams to visualize ----
 
   if (intersect(grepl("AL|NL", team),
                 grepl("East|Central|West|Overall", team))) {
     # Division or leagues in that year
-    print(paste0("Retreived the names of the ", team, " teams in ", year, "..."))
+    print(paste0("Retreiving teams that played in ", team, " in ", year, "..."))
     teams <- baseballr::bref_standings_on_date(paste0(year,"-04-30"), team) %>%
       as.data.frame() %>%
       select(1) %>%
@@ -41,7 +54,7 @@ viz_rd <- function(team, year) {
     # All MLB teams in year
     mlb <- c("AL Overall", "NL Overall")
 
-    print(paste0("Retreived the names of all the MLB teams in ", year, "..."))
+    print(paste0("Retreiving teams that played in ", team, " in ", year, "..."))
     teams <- pbapply::pbsapply(mlb, baseballr::bref_standings_on_date, date = paste0(year,"-04-30"))
     teams <- c(teams[[1,1]], teams[[1,2]])
 
@@ -52,7 +65,7 @@ viz_rd <- function(team, year) {
 
   ### Get the game's results of each team to be visualized ----
 
-  print(paste0("Getting games' results data for ", team ," teams that played in ", year, " ..."))
+  print("Getting games' data ...")
 
   # Gets the team's results tables for each team
   rd <- pblapply(teams, baseballr::bref_team_results, year)
@@ -96,37 +109,59 @@ viz_rd <- function(team, year) {
 
   ### Defining a data frame with Teams, Division and colors ----
 
-  teams_info <- teams_lu_table %>%
-    dplyr::filter(sport.name == "Major League Baseball") %>%
-    dplyr::mutate(Division = case_when(
-      division.name == "American League West" ~ "AL West",
-      division.name == "American League Central" ~ "AL Central",
-      division.name == "American League East" ~ "AL East",
-      division.name == "National League West" ~ "NL West",
-      division.name == "National League Central" ~ "NL Central",
-      division.name == "National League East" ~ "AL East")) %>%
-    dplyr::select(bref_abbreviation, Division, name) %>%
-    merge(teamcolors %>%
-            dplyr::filter(league == "mlb") %>%
-            dplyr::select(name, primary, secondary, logo),
-          by = "name")
+                # teams_info <- teams_lu_table %>%
+                #   dplyr::filter(sport.name == "Major League Baseball") %>%
+                #   dplyr::mutate(Division = case_when(
+                #     division.name == "American League West" ~ "AL West",
+                #     division.name == "American League Central" ~ "AL Central",
+                #     division.name == "American League East" ~ "AL East",
+                #     division.name == "National League West" ~ "NL West",
+                #     division.name == "National League Central" ~ "NL Central",
+                #     division.name == "National League East" ~ "AL East")) %>%
+                #   dplyr::select(bref_abbreviation, Division, name) %>%
+                #   merge(teamcolors %>%
+                #           dplyr::filter(league == "mlb") %>%
+                #           dplyr::select(name, primary, secondary, logo),
+                #         by = "name")
 
   ### Creating an ordered vector (not factor) of teams based on accumulated Runs Differential. ----
   ### NOTE: This is because 'highcharter' hc_grid function plots charts in the order they are created and not based on factors (as ggplot)
+
+  print(paste0("By ", as.character(max(as.Date(rd$Date, format = "%b %d, %Y"))), ", the team(s) are ranked in Runs Differential as shown here below (defining their order in the chart)"))
+
   teams_factor <- rd %>%
     dplyr::group_by(Team) %>%
     dplyr::summarise(R = sum(R), RA = sum(RA)) %>%
     dplyr::mutate(R_Diff = R - RA) %>%
     dplyr::arrange(desc(R_Diff), desc(R)) %>%
+    dplyr::mutate(rd_ranking = min_rank(desc(R_Diff)),
+                  ranking_text = case_when(
+                    rd_ranking == 1 ~ "1st",
+                    rd_ranking == 2 ~ "2nd",
+                    rd_ranking == 3 ~ "3rd",
+                    TRUE ~ paste0(rd_ranking, "th")
+                  )
+    )
+
+  teams_factor %>%
+    select(Rank = rd_ranking, Team, R, RA, RD = R_Diff) %>%
+      print(n = nrow(teams_factor))
+
+  rd <- rd %>%
+    inner_join(teams_factor %>%
+                 select(Team, ranking_text),
+               by = "Team")
+
+  teams_factor <- teams_factor %>%
     dplyr::select(1) %>%
     unlist()
 
   ### Calculating how many games each team has played (maximum number of games per team) ----
   max_games <- rd %>%
     group_by(Team) %>%
-    summarize(max_games = max(Game))
+    summarise(max_games = max(Game))
 
-  ###Creating charts for each team ----
+    ###Creating charts for each team ----
 
   map(teams_factor, function(x) {
 
@@ -143,12 +178,12 @@ viz_rd <- function(team, year) {
       highcharter::hc_tooltip(useHTML = TRUE,
                               headerFormat = "",
                               pointFormat = "<b>Team:</b> {point.Team} <br>
-                           <b>Date:</b> {point.Date} <br>
-                           <b>Game:</b> {point.Game} <br>
-                           <b>Run Diff:</b> {point.cum_R_Diff} <br>
-                           <b>Div Rank</b>: {point.Rank} <br>
-                           <b>W-L:</b> {point.Record} <br>
-                           <b>GB:</b> {point.GB}",
+                                            <b>Date:</b> {point.Date} <br>
+                                            <b>Game:</b> {point.Game} <br>
+                                            <b>Run Diff:</b> {point.cum_R_Diff} <br>
+                                            <b>Div Rank</b>: {point.Rank} <br>
+                                            <b>W-L:</b> {point.Record} <br>
+                                            <b>GB:</b> {point.GB}",
                               borderWidth = 1,
                               borderColor = "#000000") %>%
       highcharter::hc_add_theme(hc_theme_smpl()) %>%
@@ -159,13 +194,24 @@ viz_rd <- function(team, year) {
       highcharter::hc_yAxis(title = list(text = "R Diff"),
                             min = min_RDiff,
                             max = max_RDiff) %>%
-      highcharter::hc_title(text = paste(x, "<span style=\"background-color:#002d73\"> - Runs Differential </span>")) %>%
-      highcharter::hc_subtitle(text = paste0(year, " Season. ", max_games$max_games[max_games$Team == x], " games played")) %>%
+      highcharter::hc_title(text = paste0(x, "<span style=\"background-color:#002d73\"> - Runs Differential </span>")) %>%
+      highcharter::hc_subtitle(text =
+                                 if (length(teams_factor) > 1) {
+                                   paste0(year, " Season. After ", max_games$max_games[max_games$Team == x], " games played.", "<br>",
+                                          "Ranked as ", unique(rd$ranking_text[rd$Team == x]), " in RD in ", team)
+                                 } else {
+                                   paste0(year, " Season. After ", max_games$max_games[max_games$Team == x], " games played")
+                                 }) %>%
       # adding credits and date when the chart was build
       highcharter::hc_credits(enabled = TRUE,
-                              text = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retreived on: ", with_tz(Sys.time(), "US/Eastern") %>% format("%Y-%m-%d %H:%M %Z"))) %>%
+                              text = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retreived on: ",
+                                            with_tz(Sys.time(), "US/Eastern") %>%
+                                              format("%Y-%m-%d %H:%M %Z"))) %>%
       # enable exporting option
-      highcharter::hc_exporting(enabled = TRUE) }) %>%
+      highcharter::hc_exporting(enabled = TRUE)
+    }
+    ) %>%
+
     # faceting all charts
     highcharter::hw_grid(rowheight = 400,
                            ncol = viz_col)  %>%
