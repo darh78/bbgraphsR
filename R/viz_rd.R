@@ -26,9 +26,12 @@
 viz_rd <- function(team, year) {
 
   ### Check if arguments are valid ----
-  valid_teams <- c("AL East", "AL Central", "AL West", "AL Overall", "NL East", "NL Central", "NL West", "NL Overall", "MLB")
+  valid_teams <- c("AL East", "AL Central", "AL West", "AL Overall",
+                   "NL East", "NL Central", "NL West", "NL Overall",
+                   "MLB")
   if (!(is.character(team) && ((nchar(team) == 3) | (team %in% valid_teams)))) {
-    stop("The 'team' must be the Baseball Reference MLB team abbreviation or any of these ones: AL East, AL Central, AL West, AL Overall, NL East, NL Central, NL West, NL Overall or MLB")
+    stop("The 'team' must be the Baseball Reference team abbreviation or any of these ones:
+         AL East, AL Central, AL West, AL Overall, NL East, NL Central, NL West, NL Overall or MLB")
   }
 
   current_year <- as.numeric(format(Sys.Date(), "%Y"))
@@ -145,7 +148,7 @@ viz_rd <- function(team, year) {
 
   ## Printing the teams factor in the console
   teams_factor %>%
-    select(Rank = rd_ranking, Team, R, RA, RD = R_Diff) %>%
+    dplyr::select(Rank = rd_ranking, Team, R, RA, RD = R_Diff) %>%
       print(n = nrow(teams_factor))
 
   ## Joining the RD's ranking to the rd dataframe
@@ -205,8 +208,7 @@ viz_rd <- function(team, year) {
                                  color = "darkred",
                                  marker = list(symbol = "triangle-down",
                                                radius = 4,
-                                               lineWidth = 2,
-                                               rotation = 90),
+                                               lineWidth = 1),
                                  showInLegend = FALSE,
                                  Opacity = 1,
                                  zIndex = 3,
