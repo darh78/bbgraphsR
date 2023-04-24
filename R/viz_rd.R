@@ -9,10 +9,10 @@
 #'
 #' @importFrom baseballr bref_standings_on_date
 #' @importFrom pbapply pbsapply pblapply
-#' @importFrom dplyr  %>% select group_by mutate ungroup summarise arrange case_when
+#' @importFrom dplyr  %>% select group_by mutate ungroup summarise arrange case_when min_rank row_number inner_join
 #' @importFrom tidyr separate unite
 #' @importFrom purrr map
-#' @importFrom highcharter hchart hc_tooltip hc_add_theme hc_theme_smpl hc_xAxis hc_yAxis hc_title hc_subtitle hc_credits hc_exporting hw_grid
+#' @importFrom highcharter hchart hcaes hc_tooltip hc_add_theme hc_theme_smpl hc_xAxis hc_yAxis hc_title hc_subtitle hc_credits hc_exporting hw_grid hc_add_series
 #' @importFrom htmltools browsable
 #' @importFrom lubridate with_tz
 #'
@@ -133,8 +133,8 @@ viz_rd <- function(team, year) {
     dplyr::group_by(Team) %>%
     dplyr::summarise(R = sum(R), RA = sum(RA)) %>%
     dplyr::mutate(R_Diff = R - RA) %>%
-    dplyr::arrange(desc(R_Diff), desc(R)) %>%
-    dplyr::mutate(rd_ranking = min_rank(desc(R_Diff)),
+    dplyr::arrange(dplyr::desc(R_Diff), dplyr::desc(R)) %>%
+    dplyr::mutate(rd_ranking = dplyr::min_rank(dplyr::desc(R_Diff)),
                   ranking_text = case_when(
                     rd_ranking == 1 ~ "1st",
                     rd_ranking == 2 ~ "2nd",
@@ -143,15 +143,18 @@ viz_rd <- function(team, year) {
                   )
     )
 
+  ## Printing the teams factor in the console
   teams_factor %>%
     select(Rank = rd_ranking, Team, R, RA, RD = R_Diff) %>%
       print(n = nrow(teams_factor))
 
+  ## Joining the RD's ranking to the rd dataframe
   rd <- rd %>%
-    inner_join(teams_factor %>%
-                 select(Team, ranking_text),
-               by = "Team")
+    dplyr::inner_join(teams_factor %>%
+                        dplyr::select(Team, ranking_text),
+                      by = "Team")
 
+  ## Getting the vector of ordered teams
   teams_factor <- teams_factor %>%
     dplyr::select(1) %>%
     unlist()
@@ -165,7 +168,12 @@ viz_rd <- function(team, year) {
 
   map(teams_factor, function(x) {
 
-    rd[rd$Team == x,] %>%
+    team_data <- rd[rd$Team == x,]        # store team data in a new variable
+    max_diff <- max(team_data$cum_R_Diff) # calculate max cum_R_diff for the team
+    min_diff <- min(team_data$cum_R_Diff) # calculate min cum_R_diff for the team
+
+    team_data %>%
+      # adding the area chart for the accumulated run differential
       highcharter::hchart(showInLegend = FALSE,
                           type = "areaspline",
                           highcharter::hcaes(x = Game,
@@ -174,7 +182,35 @@ viz_rd <- function(team, year) {
                           color = "#4B5463",
                           fillColor = "#D4DFD0",
                           negativeFillColor = "#FF988C",
-                          fillOpacity = 0.4) %>%
+                          fillOpacity = 0.4,
+                          name = "RD") %>%
+      # adding points on the maximum of run differentials
+      highcharter::hc_add_series(team_data[team_data$cum_R_Diff == max_diff, ],
+                                 type = "scatter",
+                                 highcharter::hcaes(x = Game,
+                                                    y = cum_R_Diff),
+                                 color = "blue",
+                                 marker = list(symbol = "triangle",
+                                               radius = 4,
+                                               lineWidth = 1),
+                                 showInLegend = FALSE,
+                                 Opacity = 1,
+                                 zIndex = 3,
+                                 name = "Max") %>%
+      # adding points on the minimum of run differentials
+      highcharter::hc_add_series(team_data[team_data$cum_R_Diff == min_diff, ],
+                                 type = "scatter",
+                                 highcharter::hcaes(x = Game,
+                                                    y = cum_R_Diff),
+                                 color = "darkred",
+                                 marker = list(symbol = "triangle-down",
+                                               radius = 4,
+                                               lineWidth = 2,
+                                               rotation = 90),
+                                 showInLegend = FALSE,
+                                 Opacity = 1,
+                                 zIndex = 3,
+                                 name = "Min") %>%
       highcharter::hc_tooltip(useHTML = TRUE,
                               headerFormat = "",
                               pointFormat = "<b>Team:</b> {point.Team} <br>
