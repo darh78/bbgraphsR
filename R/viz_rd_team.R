@@ -1,6 +1,24 @@
-
-
-
+#' @title Graph of Accumulated Runs Differential for a team over several seasons
+#'
+#' @param team a string input, the Baseball Reference Team abbreviation
+#' @param start_year a numeric value, the starting MLB season to be analyzed
+#' @param end_year a numeric value, the ending MLB season to be analyzed
+#' @param highlight_year a numeric value, one of the seasons (within the period start-end) which will be highlithed in the chart
+#'
+#' @return A areaspline & line types chart with the accumulated run differential for the Team along the seasons analyzed
+#' @export
+#'
+#' @importFrom baseballr bref_team_results
+#' @importFrom pbapply pblapply
+#' @importFrom dplyr %>% select group_by mutate ungroup summarise
+#' @importFrom tidyr separate unite
+#' @importFrom highcharter hchart hcaes hc_tooltip hc_add_theme hc_theme_smpl hc_xAxis hc_yAxis hc_title hc_subtitle hc_credits hc_exporting hc_add_series hc_annotations
+#'
+#' @examples
+#' viz_rd_team("BOS", 2017, 2022, 2018)
+#' ## returns an RD chart for BOS between 2010-2022, highlighting 2018
+#' viz_rd_team("TBR", 2019, 2023)
+#' ## returns an RD chart for TBR between 2015-2023, highlighting 2023
 
 viz_rd_team <- function(team, start_year, end_year, highlight_year = NULL) {
 
@@ -9,11 +27,14 @@ viz_rd_team <- function(team, start_year, end_year, highlight_year = NULL) {
   print(paste0("Getting games' data for ", team ," between ", start_year, " and ", end_year, " ..."))
 
   if (is.null(highlight_year)) {
-    highlight_year <- end_year # If no highlighted year is given, by default it's the end year
+    # If no highlighted year is given, by default it's the end year
+    highlight_year <- end_year
   }
 
+  # creating a vector of all the years to be analyzed
   years <- as.character(seq(start_year, end_year, 1))
 
+  # Getting the team results along the years requested
   rd_tm <- pblapply(years, function(year) {
     baseballr::bref_team_results(Tm = team, year = year)
   })
@@ -39,44 +60,70 @@ viz_rd_team <- function(team, start_year, end_year, highlight_year = NULL) {
   min_RDiff <- round(min(rd_tm_2$cum_R_Diff)*1.1)
   max_RDiff <- round(max(rd_tm_2$cum_R_Diff)*1.1)
 
-  annot_years <- rd_tm_2  |>
-    dplyr::group_by(Year)  |>
-    dplyr::summarise(Game = max(Game) + 2,
-              cum_R_Diff = sum(R_Diff))
-
-
   ### Creating the chart for the team for all the years requested ----
 
-  rd_tm_2 <- rd_tm_2 %>%
-    dplyr::mutate(line_type = ifelse(rd_tm_2$Year == as.character(highlight_year), "solid", "dashed"))
-
-  ## Adding the area chart for the highlighted year
-  rd_tm_viz <- highcharter::hchart(rd_tm_2[rd_tm_2$Year == as.character(highlight_year),],
-                        "areaspline",
-                        highcharter::hcaes(x = Game,
-                                           y = cum_R_Diff),
-                        marker = list(enabled = FALSE),
-                        color = "#4B5463",
-                        fillColor = "#D4DFD0",
-                        negativeFillColor = "#FF988C",
-                        showInLegend = FALSE,
-                        fillOpacity = 0.2) %>%
-    ## Adding the line charts for the remaining (grouped) years requested
-    highcharter::hc_add_series(rd_tm_2[rd_tm_2$Year != as.character(highlight_year),],
-                               "spline",
+  ## Adding the line charts for the years requested (except the highlighted year)
+  rd_tm_viz <- highcharter::hchart(rd_tm_2[rd_tm_2$Year != as.character(highlight_year),],
+                                   "spline",
+                                   highcharter::hcaes(x = Game,
+                                                      y = cum_R_Diff,
+                                                      group = Year),
+                                   lineWidth = 0.8,
+                                   zoomType = "xy",
+                                   color = "gray",
+                                   marker = list(enabled = FALSE),
+                                   showInLegend = FALSE,
+                                   Opacity = 0.3) %>%
+    ## Adding the areaspline chart for the highlighted year
+    highcharter::hc_add_series(rd_tm_2[rd_tm_2$Year == as.character(highlight_year),],
+                               "areaspline",
                                highcharter::hcaes(x = Game,
-                                                  y = cum_R_Diff,
-                                                  group = Year),
-                               lineWidth = 1,
-                               color = "gray",
+                                                  y = cum_R_Diff),
                                marker = list(enabled = FALSE),
+                               lineWidth = 3,
+                               color = "#4B5463",
+                               # setting the fill color for positive values and a opacity of 0.75
+                               fillColor = "rgba(212, 223, 208, 0.75)",
+                               # setting the fill color for negative values and a opacity of 0.75
+                               negativeFillColor = "rbga(255, 152, 140, 0.8)",
                                showInLegend = FALSE,
-                               Opacity = 0.8) %>%
+                               # defining the highlighted year to be on top
+                               zIndex = 100) %>%
+    # adding points on the maximum of run differentials for the highlighted year
+    highcharter::hc_add_series(rd_tm_2 |>
+                                 dplyr::filter(Year == highlight_year) |>
+                                 dplyr::filter(cum_R_Diff == max(cum_R_Diff)),
+                               type = "scatter",
+                               highcharter::hcaes(x = Game,
+                                                  y = cum_R_Diff),
+                               color = "blue",
+                               marker = list(symbol = "triangle",
+                                             radius = 4,
+                                             lineWidth = 1),
+                               showInLegend = TRUE,
+                               Opacity = 1,
+                               zIndex = 120,
+                               name = "Max in highligthed year") %>%
+    # adding points on the minimum of run differentials for the highlighted year
+    highcharter::hc_add_series(rd_tm_2 |>
+                                 dplyr::filter(Year == highlight_year) |>
+                                 dplyr::filter(cum_R_Diff == min(cum_R_Diff)),
+                               type = "scatter",
+                               highcharter::hcaes(x = Game,
+                                                  y = cum_R_Diff),
+                               color = "darkred",
+                               marker = list(symbol = "triangle-down",
+                                             radius = 4,
+                                             lineWidth = 1),
+                               showInLegend = TRUE,
+                               Opacity = 1,
+                               zIndex = 120,
+                               name = "Min in highligthed year") %>%
     ## Adding X axis customization
     highcharter::hc_xAxis(title = list(text = "Games"),
                           lineWidth = 4,
                           tickInterval = "1",
-                          max = max(rd_tm_2$Game) + 30) %>%
+                          max = max(rd_tm_2$Game)) %>%
     ## Adding Y axis customization
     highcharter::hc_yAxis(title = list(text = "Accum R Diff"),
                           min = min_RDiff,
@@ -141,33 +188,6 @@ viz_rd_team <- function(team, start_year, end_year, highlight_year = NULL) {
     ## Enabling the menu to export the charts
     highcharter::hc_exporting(enabled = TRUE)
 
-  # rd_tm_viz
-  #
-  # ## Create a list of annotations for each Year (except the highlighted)
-  # annot_list <- lapply(1:nrow(annot_years), function(i) {
-  #   list(
-  #     point = list(x = annot_years$Game[i],
-  #                  y = annot_years$cum_R_Diff[i],
-  #                  xAxis = 0,
-  #                  yAxis = 0),
-  #     text = annot_years$Year[i],
-  #     zIndex = 9999,
-  #     labelOptions = list(
-  #       backgroundColor = "gray",
-  #       borderColor = "black",
-  #       style = list(color = "white",
-  #                    fontSize = "1em")
-  #     )
-  #   )
-  #   }
-  #   )
-  #
-  # rd_tm_viz <- rd_tm_viz %>%
-  #   highcharter::hc_add_annotations(annot_list)
-
-  rd_tm_viz %>%
-  browsable()
+  rd_tm_viz
 
 }
-
-

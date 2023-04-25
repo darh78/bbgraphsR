@@ -1,4 +1,4 @@
-#' @title Graph of Accumulated Runs Differential
+#' @title Graph of Accumulated Runs Differential for teams
 #' @description
 #' Function to plot the accumulated runs differential for an MLB team (or a group of them) on a specific MLB season
 #'
@@ -9,7 +9,7 @@
 #'
 #' @importFrom baseballr bref_standings_on_date
 #' @importFrom pbapply pbsapply pblapply
-#' @importFrom dplyr  %>% select group_by mutate ungroup summarise arrange case_when min_rank row_number inner_join
+#' @importFrom dplyr %>% select group_by mutate ungroup summarise arrange case_when min_rank row_number inner_join
 #' @importFrom tidyr separate unite
 #' @importFrom purrr map
 #' @importFrom highcharter hchart hcaes hc_tooltip hc_add_theme hc_theme_smpl hc_xAxis hc_yAxis hc_title hc_subtitle hc_credits hc_exporting hw_grid hc_add_series
@@ -18,10 +18,13 @@
 #'
 #' @return A areaspline-type chart with the accumulated run differential for the Team(s) along the season analyzed
 #'
-#'#' @examples
+#' @examples
 #' viz_rd("BOS", 2023)
-#' viz-rd("AL West", 2021)
-#' viz_rd("MLB", 2008)
+#' ## returns an RD chart for Boston Red Sox in the 2023 Season
+#' viz_rd("AL West", 2021)
+#' ## returns an RD chart for all the AL West Teams in 2021, in descending order
+#' viz_rd("NL Central", 2008)
+#' ## returns an RD chart for all the NL Central Teams in 2008, in descending order
 
 viz_rd <- function(team, year) {
 
@@ -196,7 +199,7 @@ viz_rd <- function(team, year) {
                                  marker = list(symbol = "triangle",
                                                radius = 4,
                                                lineWidth = 1),
-                                 showInLegend = FALSE,
+                                 showInLegend = TRUE,
                                  Opacity = 1,
                                  zIndex = 3,
                                  name = "Max") %>%
@@ -209,7 +212,7 @@ viz_rd <- function(team, year) {
                                  marker = list(symbol = "triangle-down",
                                                radius = 4,
                                                lineWidth = 1),
-                                 showInLegend = FALSE,
+                                 showInLegend = TRUE,
                                  Opacity = 1,
                                  zIndex = 3,
                                  name = "Min") %>%
