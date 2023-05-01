@@ -51,14 +51,14 @@ viz_rd_team <- function(team, start_year, end_year, highlight_year = NULL) {
     dplyr::select(Gm, Date, Tm, Opp, R, RA, Record, W, L, Rank, GB, Year) %>%
     dplyr::group_by(Year) %>%
     dplyr::mutate(WLpct = round(as.numeric(W)/(as.numeric(W)+as.numeric(L)), 3),
-                  R_Diff = R - RA,
-                  cum_R_Diff = cumsum(R_Diff)) %>%
+                  RD = R - RA,
+                  cum_RD = cumsum(RD)) %>%
     dplyr::ungroup()
 
   names(rd_tm_2)[c(1,3)] <- c("Game", "Team")
 
-  min_RDiff <- round(min(rd_tm_2$cum_R_Diff)*1.1)
-  max_RDiff <- round(max(rd_tm_2$cum_R_Diff)*1.1)
+  min_RD <- round(min(rd_tm_2$cum_RD)*1.1)
+  max_RD <- round(max(rd_tm_2$cum_RD)*1.1)
 
   ### Creating the chart for the team for all the years requested ----
 
@@ -66,7 +66,7 @@ viz_rd_team <- function(team, start_year, end_year, highlight_year = NULL) {
   rd_tm_viz <- highcharter::hchart(rd_tm_2[rd_tm_2$Year != as.character(highlight_year),],
                                    "spline",
                                    highcharter::hcaes(x = Game,
-                                                      y = cum_R_Diff,
+                                                      y = cum_RD,
                                                       group = Year),
                                    lineWidth = 0.8,
                                    zoomType = "xy",
@@ -78,7 +78,7 @@ viz_rd_team <- function(team, start_year, end_year, highlight_year = NULL) {
     highcharter::hc_add_series(rd_tm_2[rd_tm_2$Year == as.character(highlight_year),],
                                "areaspline",
                                highcharter::hcaes(x = Game,
-                                                  y = cum_R_Diff),
+                                                  y = cum_RD),
                                marker = list(enabled = FALSE),
                                lineWidth = 3,
                                color = "#4B5463",
@@ -92,10 +92,10 @@ viz_rd_team <- function(team, start_year, end_year, highlight_year = NULL) {
     # adding points on the maximum of run differentials for the highlighted year
     highcharter::hc_add_series(rd_tm_2 |>
                                  dplyr::filter(Year == highlight_year) |>
-                                 dplyr::filter(cum_R_Diff == max(cum_R_Diff)),
+                                 dplyr::filter(cum_RD == max(cum_RD)),
                                type = "scatter",
                                highcharter::hcaes(x = Game,
-                                                  y = cum_R_Diff),
+                                                  y = cum_RD),
                                color = "blue",
                                marker = list(symbol = "triangle",
                                              radius = 4,
@@ -107,10 +107,10 @@ viz_rd_team <- function(team, start_year, end_year, highlight_year = NULL) {
     # adding points on the minimum of run differentials for the highlighted year
     highcharter::hc_add_series(rd_tm_2 |>
                                  dplyr::filter(Year == highlight_year) |>
-                                 dplyr::filter(cum_R_Diff == min(cum_R_Diff)),
+                                 dplyr::filter(cum_RD == min(cum_RD)),
                                type = "scatter",
                                highcharter::hcaes(x = Game,
-                                                  y = cum_R_Diff),
+                                                  y = cum_RD),
                                color = "darkred",
                                marker = list(symbol = "triangle-down",
                                              radius = 4,
@@ -126,15 +126,15 @@ viz_rd_team <- function(team, start_year, end_year, highlight_year = NULL) {
                           max = max(rd_tm_2$Game)) %>%
     ## Adding Y axis customization
     highcharter::hc_yAxis(title = list(text = "Accum R Diff"),
-                          min = min_RDiff,
-                          max = max_RDiff) %>%
+                          min = min_RD,
+                          max = max_RD) %>%
     ## Adding a general tooltip for the points in the chart
     highcharter::hc_tooltip(useHTML = TRUE,
                             headerFormat = "",
                             pointFormat = "<b>{point.Year}</b> season <br>
                                            <b>Date:</b> {point.Date} <br>
                                            <b>Games played:</b> {point.Game} <br>
-                                           <b>Accum Run Diff:</b> {point.cum_R_Diff} <br>
+                                           <b>Accum Run Diff:</b> {point.cum_RD} <br>
                                            <b>W-L (%):</b> {point.Record} ({point.WLpct})<br>
                                            <b>Div Rank</b>: {point.Rank} <br>
                                            <b>GB:</b> {point.GB}",
@@ -155,21 +155,21 @@ viz_rd_team <- function(team, start_year, end_year, highlight_year = NULL) {
         labels = list(
           # Annotation for the maximum accumulated RD for all the period in analysis
           list(
-            point = list(x = rd_tm_2$Game[which.max(rd_tm_2$cum_R_Diff)],
-                         y = max(rd_tm_2$cum_R_Diff),
+            point = list(x = rd_tm_2$Game[which.max(rd_tm_2$cum_RD)],
+                         y = max(rd_tm_2$cum_RD),
                          xAxis = 0,
                          yAxis = 0),
-            text = paste0("<b>Max: </b>", max(rd_tm_2$cum_R_Diff), " (in ", rd_tm_2$Year[which.max(rd_tm_2$cum_R_Diff)], ")")
+            text = paste0("<b>Max: </b>", max(rd_tm_2$cum_RD), " (in ", rd_tm_2$Year[which.max(rd_tm_2$cum_RD)], ")")
           ),
           # Annotation for the minimum accumulated RD for all the period in analysis
           list(
-            point = list(x = rd_tm_2$Game[which.min(rd_tm_2$cum_R_Diff)],
-                         y = min(rd_tm_2$cum_R_Diff),
+            point = list(x = rd_tm_2$Game[which.min(rd_tm_2$cum_RD)],
+                         y = min(rd_tm_2$cum_RD),
                          xAxis = 0,
                          yAxis = 0),
             x = 50,
             y = 40,
-            text = paste0("<b>Min: </b> ", min(rd_tm_2$cum_R_Diff), " (in ", rd_tm_2$Year[which.min(rd_tm_2$cum_R_Diff)], ")")
+            text = paste0("<b>Min: </b> ", min(rd_tm_2$cum_RD), " (in ", rd_tm_2$Year[which.min(rd_tm_2$cum_RD)], ")")
           )
           )
         )

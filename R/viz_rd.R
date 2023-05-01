@@ -49,7 +49,7 @@ viz_rd <- function(team, year) {
   if (intersect(grepl("AL|NL", team),
                 grepl("East|Central|West|Overall", team))) {
     # Division or leagues in that year
-    print(paste0("Retreiving teams that played in ", team, " in ", year, "..."))
+    message(paste0("Retreiving teams that played in ", team, " in ", year, "..."))
     teams <- baseballr::bref_standings_on_date(paste0(year,"-04-30"), team) %>%
       as.data.frame() %>%
       select(1) %>%
@@ -60,7 +60,7 @@ viz_rd <- function(team, year) {
     # All MLB teams in year
     mlb <- c("AL Overall", "NL Overall")
 
-    print(paste0("Retreiving teams that played in ", team, " in ", year, "..."))
+    message(paste0("Retreiving teams that played in ", team, " in ", year, "..."))
     teams <- pbapply::pbsapply(mlb, baseballr::bref_standings_on_date, date = paste0(year,"-04-30"))
     teams <- c(teams[[1,1]], teams[[1,2]])
 
@@ -71,7 +71,7 @@ viz_rd <- function(team, year) {
 
   ### Get the game's results of each team to be visualized ----
 
-  print("Getting games' data ...")
+  message("Getting games' data ...")
 
   # Gets the team's results tables for each team
   rd <- pblapply(teams, baseballr::bref_team_results, year)
@@ -90,8 +90,8 @@ viz_rd <- function(team, year) {
     tidyr::unite(Date, c("Date", "Year"), sep = ", ") %>%
     dplyr::select(Gm, Date, Tm, Opp, R, RA, Record, Rank, GB) %>%
     dplyr::group_by(Tm) %>%
-    dplyr::mutate(R_Diff = R - RA,
-                  cum_R_Diff = cumsum(R_Diff)) %>%
+    dplyr::mutate(RD = R - RA,
+                  cum_RD = cumsum(RD)) %>%
     dplyr::ungroup()
 
   names(rd)[c(1,3)] <- c("Game", "Team")
@@ -110,54 +110,45 @@ viz_rd <- function(team, year) {
   }
 
   ### Defining min & max for yAxis to be the same for all charts ----
-  min_RDiff <- round(min(rd$cum_R_Diff)*1.1)
-  max_RDiff <- round(max(rd$cum_R_Diff)*1.1)
-
-  ### Defining a data frame with Teams, Division and colors ----
-
-                # teams_info <- teams_lu_table %>%
-                #   dplyr::filter(sport.name == "Major League Baseball") %>%
-                #   dplyr::mutate(Division = case_when(
-                #     division.name == "American League West" ~ "AL West",
-                #     division.name == "American League Central" ~ "AL Central",
-                #     division.name == "American League East" ~ "AL East",
-                #     division.name == "National League West" ~ "NL West",
-                #     division.name == "National League Central" ~ "NL Central",
-                #     division.name == "National League East" ~ "AL East")) %>%
-                #   dplyr::select(bref_abbreviation, Division, name) %>%
-                #   merge(teamcolors %>%
-                #           dplyr::filter(league == "mlb") %>%
-                #           dplyr::select(name, primary, secondary, logo),
-                #         by = "name")
+  min_RD <- round(min(rd$cum_RD)*1.1)
+  max_RD <- round(max(rd$cum_RD)*1.1)
 
   ### Creating an ordered vector (not factor) of teams based on accumulated Runs Differential. ----
-  ### NOTE: This is because 'highcharter' hc_grid function plots charts in the order they are created and not based on factors (as ggplot)
-
-  print(paste0("By ", as.character(max(as.Date(rd$Date, format = "%b %d, %Y"))), ", the team(s) are ranked in Runs Differential as shown here below (defining their order in the chart)"))
+       ### NOTE: This is because 'highcharter' hc_grid function plots charts in the order they are created and not based on factors (as ggplot)
 
   teams_factor <- rd %>%
     dplyr::group_by(Team) %>%
     dplyr::summarise(R = sum(R), RA = sum(RA)) %>%
-    dplyr::mutate(R_Diff = R - RA) %>%
-    dplyr::arrange(dplyr::desc(R_Diff), dplyr::desc(R)) %>%
-    dplyr::mutate(rd_ranking = dplyr::min_rank(dplyr::desc(R_Diff)),
-                  ranking_text = case_when(
-                    rd_ranking == 1 ~ "1st",
-                    rd_ranking == 2 ~ "2nd",
-                    rd_ranking == 3 ~ "3rd",
-                    TRUE ~ paste0(rd_ranking, "th")
+    dplyr::mutate(RD = R - RA) %>%
+    dplyr::arrange(dplyr::desc(RD), dplyr::desc(R)) %>%
+    dplyr::mutate(Rank = dplyr::min_rank(dplyr::desc(RD)),
+                  Rank_RD = case_when(
+                    Rank == 1 ~ "1st",
+                    Rank == 2 ~ "2nd",
+                    Rank == 3 ~ "3rd",
+                    TRUE ~ paste0(Rank, "th")
                   )
     )
 
-  ## Printing the teams factor in the console
-  teams_factor %>%
-    dplyr::select(Rank = rd_ranking, Team, R, RA, RD = R_Diff) %>%
+  ## Printing the teams factor in the console, with the ranking, R, RA and RD
+  if (nrow(teams_factor) > 1) {
+    # If there is more than one team being analyzed, show a message to indicate that the chart will be ordered by descending order of RD
+    message(paste0("By ", as.character(max(as.Date(rd$Date, format = "%b %d, %Y"))), ", the team(s) are ranked in Runs Differential as shown here below (defining their order in the chart)"))
+    teams_factor |>
+      dplyr::select(Rank_RD, Team, R, RA, RD) |>
       print(n = nrow(teams_factor))
+  } else {
+    # If there is only one team, show a message to indicate their results
+    message(paste0("By ", as.character(max(as.Date(rd$Date, format = "%b %d, %Y"))), ", ", team, " had scored and allowed runs as shown here below"))
+    teams_factor |>
+      dplyr::select(Team, R, RA, RD) |>
+      print()
+      }
 
   ## Joining the RD's ranking to the rd dataframe
   rd <- rd %>%
     dplyr::inner_join(teams_factor %>%
-                        dplyr::select(Team, ranking_text),
+                        dplyr::select(Team, Rank_RD),
                       by = "Team")
 
   ## Getting the vector of ordered teams
@@ -175,15 +166,15 @@ viz_rd <- function(team, year) {
   map(teams_factor, function(x) {
 
     team_data <- rd[rd$Team == x,]        # store team data in a new variable
-    max_diff <- max(team_data$cum_R_Diff) # calculate max cum_R_diff for the team
-    min_diff <- min(team_data$cum_R_Diff) # calculate min cum_R_diff for the team
+    max_diff <- max(team_data$cum_RD) # calculate max cum_RD for the team
+    min_diff <- min(team_data$cum_RD) # calculate min cum_RD for the team
 
     team_data %>%
       # adding the area chart for the accumulated run differential
       highcharter::hchart(showInLegend = FALSE,
                           type = "areaspline",
                           highcharter::hcaes(x = Game,
-                                             y = cum_R_Diff),
+                                             y = cum_RD),
                           marker = list(enabled = FALSE),
                           color = "#4B5463",
                           fillColor = "#D4DFD0",
@@ -191,10 +182,10 @@ viz_rd <- function(team, year) {
                           fillOpacity = 0.4,
                           name = "RD") %>%
       # adding points on the maximum of run differentials
-      highcharter::hc_add_series(team_data[team_data$cum_R_Diff == max_diff, ],
+      highcharter::hc_add_series(team_data[team_data$cum_RD == max_diff, ],
                                  type = "scatter",
                                  highcharter::hcaes(x = Game,
-                                                    y = cum_R_Diff),
+                                                    y = cum_RD),
                                  color = "blue",
                                  marker = list(symbol = "triangle",
                                                radius = 4,
@@ -204,10 +195,10 @@ viz_rd <- function(team, year) {
                                  zIndex = 3,
                                  name = "Max") %>%
       # adding points on the minimum of run differentials
-      highcharter::hc_add_series(team_data[team_data$cum_R_Diff == min_diff, ],
+      highcharter::hc_add_series(team_data[team_data$cum_RD == min_diff, ],
                                  type = "scatter",
                                  highcharter::hcaes(x = Game,
-                                                    y = cum_R_Diff),
+                                                    y = cum_RD),
                                  color = "darkred",
                                  marker = list(symbol = "triangle-down",
                                                radius = 4,
@@ -221,7 +212,7 @@ viz_rd <- function(team, year) {
                               pointFormat = "<b>Team:</b> {point.Team} <br>
                                             <b>Date:</b> {point.Date} <br>
                                             <b>Game:</b> {point.Game} <br>
-                                            <b>Run Diff:</b> {point.cum_R_Diff} <br>
+                                            <b>Run Diff:</b> {point.cum_RD} <br>
                                             <b>Div Rank</b>: {point.Rank} <br>
                                             <b>W-L:</b> {point.Record} <br>
                                             <b>GB:</b> {point.GB}",
@@ -233,13 +224,13 @@ viz_rd <- function(team, year) {
                             tickInterval = "1") %>%
       # Y axis definition
       highcharter::hc_yAxis(title = list(text = "R Diff"),
-                            min = min_RDiff,
-                            max = max_RDiff) %>%
+                            min = min_RD,
+                            max = max_RD) %>%
       highcharter::hc_title(text = paste0(x, "<span style=\"background-color:#002d73\"> - Runs Differential </span>")) %>%
       highcharter::hc_subtitle(text =
                                  if (length(teams_factor) > 1) {
                                    paste0(year, " Season. After ", max_games$max_games[max_games$Team == x], " games played.", "<br>",
-                                          "Ranked as ", unique(rd$ranking_text[rd$Team == x]), " in RD in ", team)
+                                          "Ranked as ", unique(rd$Rank_RD[rd$Team == x]), " in RD in ", team)
                                  } else {
                                    paste0(year, " Season. After ", max_games$max_games[max_games$Team == x], " games played")
                                  }) %>%
