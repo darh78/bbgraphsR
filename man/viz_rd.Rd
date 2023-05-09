@@ -18,10 +18,12 @@ A areaspline-type chart with the accumulated run differential for the Team(s) al
 Function to plot the accumulated runs differential for an MLB team (or a group of them) on a specific MLB season
 }
 \examples{
+viz_rd("AL West", 2021)
+## returns an RD chart for all the AL West Teams in 2021, in descending order
+\dontrun{
 viz_rd("BOS", 2023)
 ## returns an RD chart for Boston Red Sox in the 2023 Season
-viz-rd("AL West", 2021)
-## returns an RD chart for all the AL West Teams in 2021, in descending order
 viz_rd("NL Central", 2008)
 ## returns an RD chart for all the NL Central Teams in 2008, in descending order
+ }
 }

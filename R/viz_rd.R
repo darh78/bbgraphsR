@@ -9,7 +9,7 @@
 #'
 #' @importFrom baseballr bref_standings_on_date
 #' @importFrom pbapply pbsapply pblapply
-#' @importFrom dplyr %>% select group_by mutate ungroup summarise arrange case_when min_rank row_number inner_join
+#' @importFrom dplyr select group_by mutate ungroup summarise arrange case_when min_rank row_number inner_join
 #' @importFrom tidyr separate unite
 #' @importFrom purrr map
 #' @importFrom highcharter hchart hcaes hc_tooltip hc_add_theme hc_theme_smpl hc_xAxis hc_yAxis hc_title hc_subtitle hc_credits hc_exporting hw_grid hc_add_series
@@ -19,12 +19,14 @@
 #' @return A areaspline-type chart with the accumulated run differential for the Team(s) along the season analyzed
 #'
 #' @examples
-#' viz_rd("BOS", 2023)
-#' ## returns an RD chart for Boston Red Sox in the 2023 Season
 #' viz_rd("AL West", 2021)
 #' ## returns an RD chart for all the AL West Teams in 2021, in descending order
+#' \dontrun{
+#' viz_rd("BOS", 2023)
+#' ## returns an RD chart for Boston Red Sox in the 2023 Season
 #' viz_rd("NL Central", 2008)
 #' ## returns an RD chart for all the NL Central Teams in 2008, in descending order
+#'  }
 
 viz_rd <- function(team, year) {
 
@@ -50,9 +52,9 @@ viz_rd <- function(team, year) {
                 grepl("East|Central|West|Overall", team))) {
     # Division or leagues in that year
     message(paste0("Retreiving teams that played in ", team, " in ", year, "..."))
-    teams <- baseballr::bref_standings_on_date(paste0(year,"-04-30"), team) %>%
-      as.data.frame() %>%
-      select(1) %>%
+    teams <- baseballr::bref_standings_on_date(paste0(year,"-04-30"), team) |>
+      as.data.frame() |>
+      select(1) |>
       unlist()
 
   } else if (team == "MLB") {
@@ -85,13 +87,13 @@ viz_rd <- function(team, year) {
 
   ### Tidying the `rd` data frame ----
 
-  rd <- rd %>%
-    tidyr::separate(Date, c("wd", "Date"), sep = ", ") %>%    # wd = weekday
-    tidyr::unite(Date, c("Date", "Year"), sep = ", ") %>%
-    dplyr::select(Gm, Date, Tm, Opp, R, RA, Record, Rank, GB) %>%
-    dplyr::group_by(Tm) %>%
+  rd <- rd |>
+    tidyr::separate(Date, c("wd", "Date"), sep = ", ") |>     # wd = weekday
+    tidyr::unite(Date, c("Date", "Year"), sep = ", ") |>
+    dplyr::select(Gm, Date, Tm, Opp, R, RA, Record, Rank, GB)  |>
+    dplyr::group_by(Tm) |>
     dplyr::mutate(RD = R - RA,
-                  cum_RD = cumsum(RD)) %>%
+                  cum_RD = cumsum(RD)) |>
     dplyr::ungroup()
 
   names(rd)[c(1,3)] <- c("Game", "Team")
@@ -110,17 +112,17 @@ viz_rd <- function(team, year) {
   }
 
   ### Defining min & max for yAxis to be the same for all charts ----
-  min_RD <- round(min(rd$cum_RD)*1.1)
-  max_RD <- round(max(rd$cum_RD)*1.1)
+  min_RD <- floor(min(rd$cum_RD)/10)*10
+  max_RD <- ceiling(max(rd$cum_RD)/10)*10
 
   ### Creating an ordered vector (not factor) of teams based on accumulated Runs Differential. ----
        ### NOTE: This is because 'highcharter' hc_grid function plots charts in the order they are created and not based on factors (as ggplot)
 
-  teams_factor <- rd %>%
-    dplyr::group_by(Team) %>%
-    dplyr::summarise(R = sum(R), RA = sum(RA)) %>%
-    dplyr::mutate(RD = R - RA) %>%
-    dplyr::arrange(dplyr::desc(RD), dplyr::desc(R)) %>%
+  teams_factor <- rd  |>
+    dplyr::group_by(Team)  |>
+    dplyr::summarise(R = sum(R), RA = sum(RA))  |>
+    dplyr::mutate(RD = R - RA)  |>
+    dplyr::arrange(dplyr::desc(RD), dplyr::desc(R))  |>
     dplyr::mutate(Rank = dplyr::min_rank(dplyr::desc(RD)),
                   Rank_RD = case_when(
                     Rank == 1 ~ "1st",
@@ -146,19 +148,19 @@ viz_rd <- function(team, year) {
       }
 
   ## Joining the RD's ranking to the rd dataframe
-  rd <- rd %>%
-    dplyr::inner_join(teams_factor %>%
+  rd <- rd  |>
+    dplyr::inner_join(teams_factor  |>
                         dplyr::select(Team, Rank_RD),
                       by = "Team")
 
   ## Getting the vector of ordered teams
-  teams_factor <- teams_factor %>%
-    dplyr::select(1) %>%
+  teams_factor <- teams_factor  |>
+    dplyr::select(1)  |>
     unlist()
 
   ### Calculating how many games each team has played (maximum number of games per team) ----
-  max_games <- rd %>%
-    group_by(Team) %>%
+  max_games <- rd  |>
+    group_by(Team)  |>
     summarise(max_games = max(Game))
 
     ###Creating charts for each team ----
@@ -169,7 +171,7 @@ viz_rd <- function(team, year) {
     max_diff <- max(team_data$cum_RD) # calculate max cum_RD for the team
     min_diff <- min(team_data$cum_RD) # calculate min cum_RD for the team
 
-    team_data %>%
+    team_data  |>
       # adding the area chart for the accumulated run differential
       highcharter::hchart(showInLegend = FALSE,
                           type = "areaspline",
@@ -180,7 +182,7 @@ viz_rd <- function(team, year) {
                           fillColor = "#D4DFD0",
                           negativeFillColor = "#FF988C",
                           fillOpacity = 0.4,
-                          name = "RD") %>%
+                          name = "RD") |>
       # adding points on the maximum of run differentials
       highcharter::hc_add_series(team_data[team_data$cum_RD == max_diff, ],
                                  type = "scatter",
@@ -193,7 +195,7 @@ viz_rd <- function(team, year) {
                                  showInLegend = TRUE,
                                  Opacity = 1,
                                  zIndex = 3,
-                                 name = "Max") %>%
+                                 name = "Max")  |>
       # adding points on the minimum of run differentials
       highcharter::hc_add_series(team_data[team_data$cum_RD == min_diff, ],
                                  type = "scatter",
@@ -206,7 +208,7 @@ viz_rd <- function(team, year) {
                                  showInLegend = TRUE,
                                  Opacity = 1,
                                  zIndex = 3,
-                                 name = "Min") %>%
+                                 name = "Min")  |>
       highcharter::hc_tooltip(useHTML = TRUE,
                               headerFormat = "",
                               pointFormat = "<b>Team:</b> {point.Team} <br>
@@ -217,35 +219,36 @@ viz_rd <- function(team, year) {
                                             <b>W-L:</b> {point.Record} <br>
                                             <b>GB:</b> {point.GB}",
                               borderWidth = 1,
-                              borderColor = "#000000") %>%
-      highcharter::hc_add_theme(hc_theme_smpl()) %>%
+                              borderColor = "#000000")  |>
+      highcharter::hc_add_theme(hc_theme_smpl())  |>
       # X axis definition
       highcharter::hc_xAxis(title = list(text = "Games"),
-                            tickInterval = "1") %>%
+                            tickInterval = "1")  |>
       # Y axis definition
       highcharter::hc_yAxis(title = list(text = "R Diff"),
                             min = min_RD,
-                            max = max_RD) %>%
-      highcharter::hc_title(text = paste0(x, "<span style=\"background-color:#002d73\"> - Runs Differential </span>")) %>%
+                            max = max_RD,
+                            tickInterval = 25)  |>
+      highcharter::hc_title(text = paste0(x, "<span style=\"background-color:#002d73\"> - Runs Differential </span>"))  |>
       highcharter::hc_subtitle(text =
                                  if (length(teams_factor) > 1) {
                                    paste0(year, " Season. After ", max_games$max_games[max_games$Team == x], " games played.", "<br>",
                                           "Ranked as ", unique(rd$Rank_RD[rd$Team == x]), " in RD in ", team)
                                  } else {
                                    paste0(year, " Season. After ", max_games$max_games[max_games$Team == x], " games played")
-                                 }) %>%
+                                 })  |>
       # adding credits and date when the chart was build
       highcharter::hc_credits(enabled = TRUE,
                               text = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retreived on: ",
-                                            with_tz(Sys.time(), "US/Eastern") %>%
-                                              format("%Y-%m-%d %H:%M %Z"))) %>%
+                                            with_tz(Sys.time(), "US/Eastern")  |>
+                                              format("%Y-%m-%d %H:%M %Z")))  |>
       # enable exporting option
       highcharter::hc_exporting(enabled = TRUE)
     }
-    ) %>%
+    )  |>
 
     # faceting all charts
     highcharter::hw_grid(rowheight = 400,
-                           ncol = viz_col)  %>%
+                           ncol = viz_col) |>
     browsable()
 }

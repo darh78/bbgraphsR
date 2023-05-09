@@ -1,22 +1,17 @@
-#' Scrape MLB Standings on a given period and visualize timelines of Games Behind (GB) and Winning % on any division or league
+#' Scrape MLB Standings on a specific season and visualize timelines of Games Behind (GB) and Winning percentage on any division or league
 #'
-#' This function allows you to scrape the standings from MLB for a period you choose, and visualize GB & W% of teams along that period.
-#' @param start_date a date object representing the first date of the period
-#' @param end_date a date object representing the last date of the period
-#' @param lg_div One or more of AL East, AL Central, AL West,
-#' AL Overall, NL East, NL Central, NL West, and NL Overall
+#' This function allows you to scrape the standings from MLB teams for a specific season, and visualize two charts: Game Behind (GB) and Winning percentage of teams during that season.
+#' @param lg_div a string input, Baseball Reference Team abbreviation or a division (e.g. NL East, NL Central, NL West, NL Overall, AL East, AL Central, AL West or AL Overall)
+#' @param year a numeric value, MLB season to be analyzed
 #' @keywords MLB, standings
-#' @importFrom highcharter hchart hc_title hc_subtitle hc_credits hc_yAxis hc_xAxis hc_add_theme hcaes hc_theme_smpl highchart hc_add_series
-#' @importFrom pbapply pbsapply
-#' @importFrom tidyr separate
+#' @importFrom highcharter highchart hchart hc_title hc_subtitle hc_credits hc_yAxis hc_xAxis hc_add_theme hcaes hc_theme_smpl highchart hc_add_series hc_tooltip hc_exporting
+#' @importFrom pbapply pblapply
+#' @importFrom tidyr separate unite
 #' @importFrom lubridate year
-#' @importFrom teamcolors teamcolors
-#' @importFrom Lahman Teams
-#' @export viz_standings_on_period
-#' @examples
-#' \dontrun{
-#' viz_standings_on_period("2019-03-28", "2019-04-25", "AL East")
-#' }
+#' @importFrom baseballr bref_standings_on_date bref_team_results
+#' @importFrom dplyr select bind_rows mutate bind_rows rename arrange desc filter pull left_join
+#' @importFrom purrr map
+#' @export viz_standings
 
 viz_standings <- function(lg_div, year) {
 
@@ -92,7 +87,7 @@ viz_standings <- function(lg_div, year) {
     if (lg_div == "AL Overall") {
 
       divisions <- c("AL East", "AL Central", "AL West")
-      cat(paste("Getting AL standings by", max(standings$Date), "..."))
+      message(paste("Getting AL standings by", max(standings$Date), "..."))
 
       leaders <- divisions |>
         purrr::map(~ baseballr::bref_standings_on_date(max(standings$Date), .x)) |>
@@ -102,14 +97,14 @@ viz_standings <- function(lg_div, year) {
         dplyr::rename(Wpct = 'W-L%', pythwpct = 'pythW-L%') |>
         dplyr::arrange(dplyr::desc(Wpct))
 
-      cat(paste("Lines of AL Division Leaders by", max(standings$Date), "will be thicker in the plot"))
+      message(paste("Lines of AL Division Leaders by", max(standings$Date), "will be thicker in the plot"))
       print(leaders)
 
 
     } else if (lg_div == "NL Overall") {
 
       divisions <- c("NL East", "NL Central", "NL West")
-      cat(paste("Getting NL standings by", max(standings$Date), "..."))
+      message(paste("Getting NL standings by", max(standings$Date), "..."))
 
       leaders <- divisions |>
         purrr::map(~ baseballr::bref_standings_on_date(max(standings$Date), .x)) |>
@@ -119,12 +114,12 @@ viz_standings <- function(lg_div, year) {
         dplyr::rename(Wpct = 'W-L%', pythwpct = 'pythW-L%') |>
         dplyr::arrange(dplyr::desc(Wpct))
 
-      cat(paste("Lines of NL Division Leaders by", max(standings$Date), "will be thicker in the plot"))
+      message(paste("Lines of NL Division Leaders by", max(standings$Date), "will be thicker in the plot"))
       print(leaders)
 
     }
   } else {
-    cat(paste("Getting ", lg_div, "standings by", max(standings$Date), "..."))
+    message(paste("Getting ", lg_div, "standings by", max(standings$Date), "..."))
 
     leaders <- baseballr::bref_standings_on_date(max(standings$Date), lg_div) |>
       dplyr::mutate(GB = ifelse(GB == "--", 0, GB)) |>
@@ -132,7 +127,7 @@ viz_standings <- function(lg_div, year) {
       dplyr::rename(Wpct = 'W-L%', pythwpct = 'pythW-L%') |>
       dplyr::arrange(dplyr::desc(Wpct))
 
-    cat(paste("Line of ", leaders$Tm[1], "will be thicker in the plot"))
+    message(paste("Line of ", leaders$Tm[1], "will be thicker in the plot"))
     print(leaders)
 
   }
@@ -143,14 +138,19 @@ leaders <- leaders |>
 
 
 # Create a table of colors by team
-team_palette <- Lahman::Teams  |>
+
+Teams_Lahman <- read.csv("data/Teams.csv")[ , -1]
+
+team_palette <- Teams_Lahman  |>
   dplyr::filter(yearID == 2021)  |>
   dplyr::select(name, teamIDBR)
 
 team_palette$name[team_palette$teamIDBR == "LAA"] <- "Los Angeles Angels"
 
+teamcolors <- read.csv("data/teamcolors.csv")[ , -1]
+
 team_palette <- team_palette |>
-  dplyr::left_join(teamcolors::teamcolors, by = "name") |>
+  dplyr::left_join(teamcolors, by = "name") |>
   dplyr::rename(Team = teamIDBR) |>
   dplyr::select(Team, primary, secondary)
 
@@ -158,7 +158,7 @@ team_palette <- team_palette |>
 # Replace "primary" color of some teams by its "secondary" color
 team_palette[c(1, 2, 5, 11, 16, 17, 21, 25, 27, 28), 2] <- team_palette[c(1, 2, 5, 11, 16, 17, 21, 25, 27, 28), 3]
 # 1 ARI, 2 ATL, 5 CHC, 11 HOU, 16 MIL, 17 MIN, 21 PHI, 25 SEA, 27 TBR, 28 TEX
-team_palette[,3] <- NULL # Remove "secondary" column
+team_palette[ , 3] <- NULL # Remove "secondary" column
 
 
 # Join "primary" color column to standings data.frame
@@ -183,7 +183,7 @@ unique_teams <- unique(standings$Team)
                                      highcharter::hcaes(x = Date, y = GB),
                                      name = unique_teams[i],
                                      color = team_palette[team_palette$Team == unique_teams[i], 2],
-                                     type = "line",
+                                     type = "spline",
                                      lineWidth = 4)
 
       } else {
@@ -193,7 +193,7 @@ unique_teams <- unique(standings$Team)
                                      highcharter::hcaes(x = Date, y = GB),
                                      name = unique_teams[i],
                                      color = team_palette[team_palette$Team == unique_teams[i], 2],
-                                     type = "line",
+                                     type = "spline",
                                      dashStyle = "ShortDashDotDot",
                                      lineWidth = 2)
       }
@@ -205,7 +205,7 @@ unique_teams <- unique(standings$Team)
                                    highcharter::hcaes(x = Date, y = GB),
                                    name = unique_teams[i],
                                    color = team_palette[team_palette$Team == unique_teams[i], 2],
-                                   type = "line",
+                                   type = "spline",
                                    lineWidth = 3)
     }
 
@@ -221,7 +221,7 @@ unique_teams <- unique(standings$Team)
                                        lubridate::year(standings$Date[1]),
                                        lg_div,
                                        "Standings (Games Behind)")) |>
-    # highcharter::hc_subtitle(text = paste("from", start_date, "to", end_date)) |>
+    highcharter::hc_subtitle(text =  "Solid line(s) represent the leader(s) in the division(s)") |>
     highcharter::hc_credits(enabled = TRUE, # add credits
                             text = "Source: Baseball Reference. Using 'baseballr' R package") |>
     highcharter::hc_add_theme(highcharter::hc_theme_smpl()) |>
@@ -290,7 +290,7 @@ unique_teams <- unique(standings$Team)
                                        lubridate::year(standings$Date[1]),
                                        lg_div,
                                        " - Winning percentage, by ", max(standings$Date))) |>
-    highcharter::hc_subtitle(text = "Line of leader(s) in the division(s) is thicker than other teams") |>
+    highcharter::hc_subtitle(text =  "Solid line(s) represent the leader(s) in the division(s)") |>
     highcharter::hc_credits(enabled = TRUE,
                             text = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retreived on: ",
                                           lubridate::with_tz(Sys.time(), "US/Eastern")  |>
