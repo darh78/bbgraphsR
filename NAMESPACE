@@ -2,6 +2,7 @@
 
 export(viz_rd)
 export(viz_rd_team)
+export(viz_rd_wpct)
 export(viz_standings)
 importFrom(baseballr,bref_standings_on_date)
 importFrom(baseballr,bref_team_results)

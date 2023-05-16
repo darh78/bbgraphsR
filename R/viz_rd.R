@@ -115,6 +115,18 @@ viz_rd <- function(team, year) {
   min_RD <- floor(min(rd$cum_RD)/10)*10
   max_RD <- ceiling(max(rd$cum_RD)/10)*10
 
+  # interval in y axis to allow a better adjustment of y min and max
+  if (max_RD <= 120) {
+    y_interval <- 25
+  } else if (max_RD <= 250) {
+    y_interval <- 50
+  } else if (max_RD <= 350) {
+    y_interval <- 100
+  } else {
+    y_interval <- 200
+  }
+
+
   ### Creating an ordered vector (not factor) of teams based on accumulated Runs Differential. ----
        ### NOTE: This is because 'highcharter' hc_grid function plots charts in the order they are created and not based on factors (as ggplot)
 
@@ -228,7 +240,7 @@ viz_rd <- function(team, year) {
       highcharter::hc_yAxis(title = list(text = "R Diff"),
                             min = min_RD,
                             max = max_RD,
-                            tickInterval = 25)  |>
+                            tickInterval = y_interval)  |>
       highcharter::hc_title(text = paste0(x, "<span style=\"background-color:#002d73\"> - Runs Differential </span>"))  |>
       highcharter::hc_subtitle(text =
                                  if (length(teams_factor) > 1) {
