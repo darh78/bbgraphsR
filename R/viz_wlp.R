@@ -69,20 +69,21 @@ viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = 
 
   # Join "primary" color column to wl data.frame
   wl <- wl |>
-    dplyr::left_join(teams_meta, by = c("Team", "Season"))
+    dplyr::left_join(teams_meta, by = c("Team", "Season")) |>
+    dplyr::mutate()
 
   # If the Lahman package doesn't have the data for the current season, then the data for the teams in the current Season needs to be filled in
 
   if (is.na(wl[max(wl$Season), 6])) {
 
     # Create a temp data frame with the second last Season data
-    temp_df <- wl %>%
-      dplyr::filter(Season == max(wl$Season) - 1) %>%
+    temp_df <- wl |>
+      dplyr::filter(Season == max(wl$Season) - 1) |>
       dplyr::mutate(Season = max(wl$Season))  # Change the Season to the last Season
 
     # Join this data frame to the original data frame to fill the missing data of the last Season
-    wl <- wl %>%
-      dplyr::left_join(temp_df, by = c("Team", "Season"), suffix = c("", ".y")) %>%
+    wl <- wl |>
+      dplyr::left_join(temp_df, by = c("Team", "Season"), suffix = c("", ".y")) |>
       dplyr::mutate(
         TeamName = ifelse(is.na(TeamName), TeamName.y, TeamName),
         franchID = ifelse(is.na(franchID), franchID.y, franchID),
@@ -91,7 +92,7 @@ viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = 
         lgID = ifelse(is.na(lgID), lgID.y, lgID),
         divID = ifelse(is.na(divID), divID.y, divID),
         primary = ifelse(is.na(primary), primary.y, primary),
-      ) %>%
+      ) |>
       dplyr::select(-ends_with(".y"))  # Remove the extra columns
 
   }
@@ -165,10 +166,8 @@ viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = 
                           color = teams_data$primary[1],
                           zIndex = 10) |>
       highcharter::hc_plotOptions(spline = list(lineWidth = 4)) |>  # adjust line width here
-      # adding markers if the team clinched the playoffs
-      highcharter::hc_add_series(teams_data[teams_data$DivWin == "Y" |
-                                              teams_data$WCWin == "Y" |
-                                              teams_data$LgWin == "Y", ],
+      # adding markers if the team clinched the playoffs as a Wild Card
+      highcharter::hc_add_series(teams_data[teams_data$WCWin == "Y", ],
                                  type = "scatter",
                                  highcharter::hcaes(x = Season,
                                                     y = WLpct),
@@ -180,8 +179,36 @@ viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = 
                                  showInLegend = TRUE,
                                  Opacity = 1,
                                  zIndex = 15,
-                                 name = "Clinched playoffs")  |>
-      # # adding stars if the team won the World Series
+                                 name = "Wild Card")  |>
+      # adding markers if the team clinched the playoffs as a Division Winner
+      highcharter::hc_add_series(teams_data[teams_data$DivWin == "Y", ],
+                                 type = "scatter",
+                                 highcharter::hcaes(x = Season,
+                                                    y = WLpct),
+                                 marker = list(symbol = "triangle",
+                                               lineColor = "black",
+                                               fillColor = "lightblue",
+                                               radius = 2,
+                                               lineWidth = 1),
+                                 showInLegend = TRUE,
+                                 Opacity = 1,
+                                 zIndex = 15,
+                                 name = "Won Division")  |>
+      # adding markers if the team clinched the playoffs as a League Champ
+      highcharter::hc_add_series(teams_data[teams_data$LgWin == "Y", ],
+                                 type = "scatter",
+                                 highcharter::hcaes(x = Season,
+                                                    y = WLpct),
+                                 marker = list(symbol = "square",
+                                               lineColor = "black",
+                                               fillColor = "darkblue",
+                                               radius = 2,
+                                               lineWidth = 1),
+                                 showInLegend = TRUE,
+                                 Opacity = 1,
+                                 zIndex = 15,
+                                 name = "Won League")  |>
+      # adding stars if the team won the World Series
       highcharter::hc_add_series(teams_data[teams_data$WSWin == "Y" , ],
                                  type = "scatter",
                                  highcharter::hcaes(x = Season,
@@ -195,7 +222,7 @@ viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = 
                                  showInLegend = TRUE,
                                  Opacity = 1,
                                  zIndex = 15,
-                                 name = "World Champion")  |>
+                                 name = "WS Champs")  |>
       highcharter::hc_tooltip(useHTML = TRUE,
                               headerFormat = "",
                               pointFormat = "<b>Season:</b> {point.Season} <br>
@@ -218,8 +245,8 @@ viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = 
                             min = min(wl$WLpct),
                             max = max(wl$WLpct),
                             tickInterval = 0.1) |>
-      highcharter::hc_title(text = paste0(x, "<span style=\"background-color:#002d73\"> - WL% </span>"))  |>
-      highcharter::hc_subtitle(text = paste0("In Reg. season, from " , min(wl$Season), " until ", max(wl$Season))) |>
+      highcharter::hc_title(text = paste0(x, "<span style=\"background-color:#002d73\"></span>"))  |>
+      highcharter::hc_subtitle(text = paste0("W-L% in Reg. season (" , min(wl$Season), "-", max(wl$Season), ")")) |>
       # # adding credits and date when the chart was build
       highcharter::hc_credits(enabled = TRUE,
                               text = paste0("Source: Fangraph. Using 'bbraphsR' package. Retreived on: ",
