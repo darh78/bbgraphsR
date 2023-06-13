@@ -241,11 +241,11 @@ viz_rd <- function(team, year) {
                             min = min_RD,
                             max = max_RD,
                             tickInterval = y_interval)  |>
-      highcharter::hc_title(text = paste0(x, "<span style=\"background-color:#002d73\"> - Runs Differential </span>"))  |>
+      highcharter::hc_title(text = paste0(x, "<span style=\"background-color:#002d73\"> - Run Differential </span>"))  |>
       highcharter::hc_subtitle(text =
                                  if (length(teams_factor) > 1) {
                                    paste0(year, " Season. After ", max_games$max_games[max_games$Team == x], " games played.", "<br>",
-                                          "Ranked as ", unique(rd$Rank_RD[rd$Team == x]), " in RD in ", team)
+                                          "Ranked as ", unique(rd$Rank_RD[rd$Team == x]), " in RD in ", team, ", with ", team_data$cum_RD[length(team_data$cum_RD)])
                                  } else {
                                    paste0(year, " Season. After ", max_games$max_games[max_games$Team == x], " games played")
                                  })  |>

@@ -1,19 +1,81 @@
+#' Scrapes MLB teams winning percentage from fangraphs.com along a period of years (at least 2 consecutive seasons) and visualizes a timeline for each team or franchise along that period
+#'
+#' @param from_season a numeric value, first season you want to analyze (Should be at least a year before the last/current season)
+#' @param until_season a numeric value, last season you want to analyze (Default value is 1 year after the input given in the 'from_season' argument)
+#' @param league a string input, Option for limiting results to different leagues or overall results. Options are "al", "nl", or "all" (default value).
+#' @param fran_tm a string input, Option for indicating if the plot will be grouped by teams or by franchises (useful if period of season is longer)
+#' @keywords MLB, performance
+#' @importFrom highcharter highchart hchart hc_title hc_subtitle hc_credits hc_yAxis hc_xAxis hc_add_theme hcaes hc_theme_smpl hc_add_series hc_tooltip hc_exporting hc_plotOptions hw_grid
+#' @importFrom pbapply pblapply
+#' @importFrom htmltools browsable
+#' @importFrom lubridate with_tz
+#' @importFrom baseballr fg_team_pitcher
+#' @importFrom dplyr select mutate rename arrange desc filter pull left_join
+#' @importFrom purrr map
+#' @export viz_wlp_years
+#'
+#' @examples viz_wlp_years(2020, 2023)
 
 
+viz_wlp_years <- function(from_season, until_season = from_season + 1, league = "all", fran_tm = "franchise") {
 
+  ### Check if arguments are valid ----
 
+  # Check from_season is either NULL (default value) or is in the numeric format
+  if (!is.null(from_season) && !is.numeric(from_season)) {
 
+    stop(paste0("The 'from_season' argument must be a numeric value representing the first year to analyze. It must be between 1876 and less than 'until_season' argument"))
 
-viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = "franchise") {
-
-  if (is.null(until_season)) {
-
-    until_season <- from_season # meaning just 1 season will be retrieved
-
-  } else {
-    seasons <- seq(from_season, until_season, by = 1)
   }
 
+  # Check if until_season is in the numeric format
+  if (!is.numeric(until_season)) {
+
+    stop(paste0("The 'until_season' argument must be a numeric value representing the last year to analyze. It must greater than the 'from_season' argument and less than the current/last season"))
+
+  }
+
+  # Check if from_season is less than until_season
+  if (!(is.numeric(until_season) && is.numeric(from_season) && from_season < until_season)) {
+    stop(paste0("The 'from_season' argument must be less than the 'until_season'"))
+  }
+
+  # Check if league is within the accepted values
+  valid_league <- c("nl", "al", "all")
+
+  if (!(league %in% valid_league)) {
+    stop("The 'league' argument must be any of the following possibilities:
+         nl, al, all")
+  }
+
+  # Check if fran_tm is within the accepted values
+  valid_type <- c("franchise", "team")
+
+  if (!(fran_tm %in% valid_type)) {
+    stop("The 'fran_tm' argument must be any of the following possibilities:
+         franchise or team")
+  }
+
+  # Check until_season is in the worst case the current year
+  current_year <- as.numeric(format(Sys.Date(), "%Y"))
+
+  if (!(!is.null(until_season) && is.numeric(until_season) && until_season >= 1876 && until_season <= current_year)) {
+    stop(paste0("The 'until_season' argument must be a numeric value between 1876 and the last/current MLB season"))
+  }
+
+  # If all arguments are valid, continue with the function
+
+  ### Defining the years to analyze ----
+
+  if (is.null(from_season)) { # If no staring season has been defined, at least two years will be considered to be analyze
+
+    from_season <- until_season - 1
+
+  } else {
+    seasons <- seq(from_season, until_season, by = 1)   # defines a sequence of years to analyze
+  }
+
+  ### Getting W-L data in the requested period ----
   message(paste0("Getting W-L data about teams/franchises that played between ", from_season, " to ", until_season, " ..."))
   wl <- baseballr::fg_team_pitcher(x = from_season, y = until_season, league = league, ind = 1) |>
     dplyr::select(Season, Team, W, L) |>
@@ -24,7 +86,7 @@ viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = 
 
   wl$Season <- as.numeric(wl$Season)
 
-  # Create a table of colors by team and also if they clinched the playoffs and won the World Series
+  ### Create a table of colors by team and also if they clinched the playoffs and won the World Series ----
 
   Teams_Lahman <- read.csv("data/Teams.csv")[ , -1]
   Teams_Franchises <- read.csv("data/TeamsFranchises.csv")[ , -1]
@@ -51,13 +113,13 @@ viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = 
 
   ### Determine the columns for the grid chart, based on number of teams ----
 
-  if (length(seasons) == 1 | length(seasons) == 3 | length(seasons) == 5) {
+  if (length(unique(wl$Team)) == 1 | length(unique(wl$Team)) == 3 | length(unique(wl$Team)) == 5) {
     viz_col <- 1
-  } else if (length(seasons) == 2 | length(seasons) == 4 | length(seasons) == 6) {
+  } else if (length(unique(wl$Team)) == 2 | length(unique(wl$Team)) == 4 | length(unique(wl$Team)) == 6) {
     viz_col <- 2
-  } else if (length(seasons) > 6 & length(seasons) < 10) {
+  } else if (length(unique(wl$Team)) > 6 & length(unique(wl$Team)) < 10) {
     viz_col <- 3
-  } else if (length(seasons) >= 10) {
+  } else if (length(unique(wl$Team)) >= 10) {
     viz_col <- 5
   }
 
@@ -105,12 +167,12 @@ viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = 
                                  ifelse(LgWin == "Y", paste0(lgID, " Champs"),
                                         ifelse(DivWin == "Y", paste0("Won ", lgID, " ", divID),
                                                ifelse(WCWin == "Y", "Wild Card", "Eliminated")
-                                               )
                                         )
                                  )
-                  )
+    )
+    )
 
-  ### If the Lahman package doesn't have the data for the current season, then the data for the teams in the current Season needs to be filled in ----
+  ### Fill in data for current season in the case the Lahman package doesn't have the data for it ----
 
   if (is.na(wl[max(wl$Season), 6])) {
 
@@ -163,12 +225,14 @@ viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = 
   teams_factor |>
     print(n = nrow(teams_factor))
 
-  ## Join the global W% of each team/franchise in the periodof analysis to the wl dataframe
+  wl_period <- teams_factor
+
+  ## Join the global W% of each team/franchise in the period of analysis to the wl dataframe
 
   if (fran_tm == "team") {
 
     wl <- wl |>
-    dplyr::left_join(teams_factor[, c(1,4)], by = "Team")
+      dplyr::left_join(teams_factor[, c(1,4)], by = "Team")
 
   } else if (fran_tm == "franchise") {
 
@@ -188,11 +252,18 @@ viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = 
     if (fran_tm == "team") {
 
       teams_data <- wl[wl$Team == x, ]          # sub-setting wl data frame per team
+      wl_whole <- wl_period[wl_period$Team == x, ]
 
     } else if (fran_tm == "franchise") {
 
       teams_data <- wl[wl$franchID == x, ]      # sub-setting wl data frame per franchise
+      wl_whole <- wl_period[wl_period$franchID == x, ]
 
+    }
+
+    # Check if teams_data is empty
+    if (nrow(teams_data) == 0) {
+      return(NULL) # or handle the error as you see fit
     }
 
     max_wlpct <- max(teams_data$WLpct)    # calculate max WL% in a season for the team
@@ -284,6 +355,7 @@ viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = 
       # X axis definition
       highcharter::hc_xAxis(plotLines = list(list(value = 0.5, color = "red", width = 2,
                                                   dashStyle = "shortdash")),
+                            allowDecimals = FALSE, # This will force the x-axis to only use integers
                             zIndex = 2,
                             min = min(wl$Season),
                             max = max(wl$Season)) |>
@@ -296,7 +368,7 @@ viz_wlp <- function(from_season, until_season = NULL, league = "all", fran_tm = 
                             tickInterval = 0.1) |>
       highcharter::hc_title(text = paste0(x, "<strong><span style='font-size: 20px; color: black </span></strong>")) |>
       highcharter::hc_subtitle(text = htmltools::HTML(
-        paste0("W% in Reg. season (" , min(wl$Season), "-", max(wl$Season), "): <strong><span style='color: ", font_color, ";'>", teams_data$Wp_global[1]), "</span></strong>")) |>
+        paste("W% in Reg. season (" , min(wl$Season), "-", max(wl$Season), "): <strong><span style='color: ", font_color, ";'>", teams_data$Wp_global[1]), "</span></strong> (", wl_whole$W, "-", wl_whole$L, ")")) |>
       # # adding credits and date when the chart was build
       highcharter::hc_credits(enabled = TRUE,
                               text = paste0("Source: Fangraph. Using 'bbraphsR' package. Retreived on: ",
