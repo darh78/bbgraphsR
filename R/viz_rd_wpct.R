@@ -87,7 +87,7 @@ viz_rd_wpct <- function(team, year) {
 
   ### Tidying the `rd` data frame ----
 
-  rd <- saved_rd |>
+  rd <- rd |>
     tidyr::separate(Date, c("wd", "Date"), sep = ", ") |>     # wd = weekday
     tidyr::unite(Date, c("Date", "Year"), sep = ", ") |>
     tidyr::separate(Record, c("W", "L"), sep = "-", remove = FALSE) |>
@@ -120,26 +120,65 @@ viz_rd_wpct <- function(team, year) {
   min_RD <- floor(min(rd$cum_RD)/10)*10
   max_RD <- ceiling(max(rd$cum_RD)/10)*10
 
+  # interval in x axis to allow a better adjustment of x min and max
+  if (max_RD <= 120) {
+    x_interval <- 25
+  } else if (max_RD <= 250) {
+    x_interval <- 50
+  } else if (max_RD <= 350) {
+    x_interval <- 100
+  } else {
+    x_interval <- 200
+  }
+
   ### Creating an ordered vector (not factor) of teams based on accumulated Runs Differential. ----
   ### NOTE: This is because 'highcharter' hc_grid function plots charts in the order they are created and not based on factors (as ggplot)
 
   teams_factor <- rd  |>
     dplyr::group_by(Team)  |>
-    dplyr::summarise(R = sum(R), RA = sum(RA))  |>
-    dplyr::mutate(RD = R - RA)  |>
-    dplyr::arrange(dplyr::desc(RD), dplyr::desc(R))  |>
-    dplyr::mutate(Rank = dplyr::min_rank(dplyr::desc(RD)),
-                  Rank_RD = dplyr::case_when(
-                    Rank == 1 ~ "1st",
-                    Rank == 2 ~ "2nd",
-                    Rank == 3 ~ "3rd",
-                    TRUE ~ paste0(Rank, "th")
-                  )
-    )
+    dplyr::filter(Game == max(Game)) |>
+    ungroup() |>
+    dplyr::arrange(dplyr::desc(Wpct), dplyr::desc(cum_RD))  |>
+    dplyr::mutate(
+      Rank = dplyr::min_rank(dplyr::desc(Wpct)),
+      Rank_Wpct = dplyr::case_when(
+        Rank == 1 ~ "1st",
+        Rank == 2 ~ "2nd",
+        Rank == 3 ~ "3rd",
+        TRUE ~ paste0(Rank, "th")
+        )
+      )
+
+
+  ## Printing the teams factor in the console, with the ranking, Wpct and cumRD at their last game
+  if (nrow(teams_factor) > 1) {
+    # If there is more than one team being analyzed, show a message to indicate that the chart will be ordered by descending order of RD
+    message(paste0("By ", as.character(max(as.Date(rd$Date, format = "%b %d, %Y"))), ", the team(s) are ranked based on their Winning percentage, as shown here below (defining their order in the chart)"))
+    teams_factor |>
+      dplyr::select(Rank_Wpct, Team, W, L, Wpct, cum_RD) |>
+      print(n = nrow(teams_factor))
+  } else {
+    # If there is only one team, show a message to indicate their results
+    message(paste0("By ", as.character(max(as.Date(rd$Date, format = "%b %d, %Y"))), ", ", team, " had scored and allowed runs as shown here below"))
+    teams_factor |>
+      dplyr::select(Team, W, L, Wpct, cum_RD) |>
+      print()
+  }
+
+  ## Joining the RD's ranking to the rd dataframe
+  rd <- rd  |>
+    dplyr::inner_join(teams_factor  |>
+                        dplyr::select(Team, Rank_Wpct),
+                      by = "Team")
+
+  ### Calculating how many games each team has played (maximum number of games per team) ----
+  max_games <- rd  |>
+    group_by(Team)  |>
+    summarise(max_games = max(Game))
 
   ## Getting the vector of ordered teams
   teams_factor <- teams_factor  |>
-    dplyr::select(1)  |>
+    dplyr::select(3)  |>
     unlist()
 
   ###Creating charts for each team ----
@@ -147,8 +186,8 @@ viz_rd_wpct <- function(team, year) {
   map(teams_factor, function(x) {
 
     team_data <- rd[rd$Team == x,]        # store team data in a new variable
-    max_diff <- max(team_data$cum_RD) # calculate max cum_RD for the team
-    min_diff <- min(team_data$cum_RD) # calculate min cum_RD for the team
+    max_diff <- max(team_data$cum_RD)     # calculate max cum_RD for the team
+    min_diff <- min(team_data$cum_RD)     # calculate min cum_RD for the team
 
     team_data  |>
       # adding the area chart for the accumulated run differential
@@ -157,9 +196,11 @@ viz_rd_wpct <- function(team, year) {
                           highcharter::hcaes(x = cum_RD,
                                              y = Wpct,
                                              color = Game),
+                          zIndex = 5,
+                          Opacity = 0.5,
                           marker = list(symbol = "circle",
-                                        radius = 5,
-                                        lineWidth = 1),
+                                        radius = 3,
+                                        lineWidth = .5),
                           name = "By game") |>
       # adding points on the maximum of run differentials
       highcharter::hc_add_series(team_data,
@@ -167,13 +208,14 @@ viz_rd_wpct <- function(team, year) {
                                  highcharter::hcaes(x = cum_RD,
                                                     y = Wpct),
                                  color = "darkgray",
+                                 witdh = 0.5,
                                  # marker = list(symbol = "triangle",
                                  #               radius = 4,
                                  #               lineWidth = 1),
                                  showInLegend = TRUE,
                                  Opacity = 0.5,
                                  zIndex = 3,
-                                 name = "Path") |>
+                                 name = "Game sequence") |>
       highcharter::hc_tooltip(useHTML = TRUE,
                               headerFormat = "",
                               pointFormat = "<b>Team:</b> {point.Team} <br>
@@ -182,25 +224,43 @@ viz_rd_wpct <- function(team, year) {
                                             <b>RD:</b> {point.cum_RD} <br>
                                             <b>W%</b>: {point.Wpct} <br>
                                             <b>W-L:</b> {point.Record}",
-                              borderWidth = 1,
+                              borderWidth = 0.5,
                               borderColor = "#000000")  |>
       highcharter::hc_add_theme(hc_theme_smpl())  |>
       # X axis definition
-      highcharter::hc_xAxis(title = list(text = "RD"),
+      highcharter::hc_xAxis(title = list(text = "Run Differential"),
                             tickInterval = "1",
                             min = min_RD,
                             max = max_RD,
-                            tickInterval = 25)  |>
+                            tickInterval = x_interval,
+                            plotLines = list(
+                              list(
+                                value = 0,
+                                color = "gray",
+                                width = 0.5,
+                                zIndex = 2
+                              )
+                            )
+                            )  |>
       # Y axis definition
       highcharter::hc_yAxis(title = list(text = "W %"),
                             min = 0,
                             max = 1,
-                            tickInterval = 0.1)  |>
-      highcharter::hc_title(text = paste0(x, "<span style=\"background-color:#002d73\"> - Runs Differential </span>"))  |>
+                            tickInterval = 0.1,
+                            plotLines = list(
+                              list(
+                                value = 0.5,
+                                color = "gray",
+                                width = 0.5,
+                                zIndex = 2
+                              )
+                            )
+                            )  |>
+      highcharter::hc_title(text = paste0(x, "<span style=\"background-color:#002d73\"> - Run Differential vs Winning % </span>"))  |>
       highcharter::hc_subtitle(text =
                                  if (length(teams_factor) > 1) {
                                    paste0(year, " Season. After ", max_games$max_games[max_games$Team == x], " games played.", "<br>",
-                                          "Ranked as ", unique(rd$Rank_RD[rd$Team == x]), " in RD in ", team)
+                                          "Ranked as ", unique(rd$Rank_Wpct[rd$Team == x]), " in Wpct in ", team)
                                  } else {
                                    paste0(year, " Season. After ", max_games$max_games[max_games$Team == x], " games played")
                                  })  |>
@@ -219,7 +279,3 @@ viz_rd_wpct <- function(team, year) {
                          ncol = viz_col) |>
     browsable()
 }
-
-
-
-
