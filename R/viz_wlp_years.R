@@ -66,20 +66,26 @@ viz_wlp_years <- function(from_season, until_season = from_season + 1, league = 
   # If all arguments are valid, continue with the function
 
   ### Defining the years to analyze ----
-
-  if (is.null(from_season)) { # If no staring season has been defined, at least two years will be considered to be analyze
-
+  if (is.null(from_season)) { # If no starting season has been defined, at least two years will be considered to be analyzed
     from_season <- until_season - 1
-
-  } else {
-    seasons <- seq(from_season, until_season, by = 1)   # defines a sequence of years to analyze
   }
+
+  # Define a sequence of years to analyze
+  seasons <- seq(from_season, until_season, by = 1)   # Moved out of the else block to be always defined
+
 
   ### Getting W-L data in the requested period ----
   message(paste0("Getting W-L data about teams/franchises that played between ", from_season, " to ", until_season, " ..."))
-  wl <- baseballr::fg_team_pitcher(x = from_season, y = until_season, league = league, ind = 1) |>
-    dplyr::select(Season, Team, W, L) |>
-    dplyr::mutate(WLpct = round(W / (W+L), 3)) |>
+
+  # Use purrr::map to iterate over the seasons and collect data
+  wl <- purrr::map_dfr(seasons, function(season) {
+    baseballr::fg_team_pitcher(startseason = as.character(season), endseason = as.character(season), lg = league, ind = 1) |>
+      dplyr::select(Season, Team = team_name, W, L) |>
+      dplyr::mutate(WLpct = round(W / (W+L), 3))
+  })
+
+  # Continue with the original grouping and arranging
+  wl <- wl |>
     dplyr::group_by(Team) |>
     dplyr::arrange(Season) |>
     dplyr::ungroup()
@@ -172,16 +178,45 @@ viz_wlp_years <- function(from_season, until_season = from_season + 1, league = 
     )
     )
 
-  ### Fill in data for current season in the case the Lahman package doesn't have the data for it ----
+  # ### Fill in data for current season in the case the Lahman package doesn't have the data for it ----
+  #
+  # if (is.na(wl[max(wl$Season), 6])) {
+  #
+  #   # Create a temp data frame with the second last Season data
+  #   temp_df <- wl |>
+  #     dplyr::filter(Season == max(wl$Season) - 1) |>
+  #     dplyr::mutate(Season = max(wl$Season))  # Change the Season to the last Season
+  #
+  #   # Join this data frame to the original data frame to fill the missing data of the last Season
+  #   wl <- wl |>
+  #     dplyr::left_join(temp_df, by = c("Team", "Season"), suffix = c("", ".y")) |>
+  #     dplyr::mutate(
+  #       TeamName = ifelse(is.na(TeamName), TeamName.y, TeamName),
+  #       franchID = ifelse(is.na(franchID), franchID.y, franchID),
+  #       Franchise = ifelse(is.na(Franchise), Franchise.y, Franchise),
+  #       active = ifelse(is.na(active), active.y, active),
+  #       lgID = ifelse(is.na(lgID), lgID.y, lgID),
+  #       divID = ifelse(is.na(divID), divID.y, divID),
+  #       primary = ifelse(is.na(primary), primary.y, primary),
+  #       secondary = ifelse(is.na(secondary), secondary.y, secondary)
+  #     ) |>
+  #     dplyr::select(-ends_with(".y"))  # Remove the extra columns
+  #
+  # }
 
-  if (is.na(wl[max(wl$Season), 6])) {
 
-    # Create a temp data frame with the second last Season data
+  # Identify rows for the most recent season
+  recent_season_rows <- wl %>% dplyr::filter(Season == max(Season))
+
+  # Check if 'TeamName' has any missing values in the recent season
+  if (any(is.na(recent_season_rows$TeamName))) {
+    # Proceed with the data imputation as needed
+    # Create a temp data frame with data from the previous season
     temp_df <- wl |>
-      dplyr::filter(Season == max(wl$Season) - 1) |>
-      dplyr::mutate(Season = max(wl$Season))  # Change the Season to the last Season
+      dplyr::filter(Season == (max(wl$Season) - 1)) |>
+      dplyr::mutate(Season = max(wl$Season))  # Change the Season to the latest Season
 
-    # Join this data frame to the original data frame to fill the missing data of the last Season
+    # Join this data frame to the original data frame to fill the missing data of the latest Season
     wl <- wl |>
       dplyr::left_join(temp_df, by = c("Team", "Season"), suffix = c("", ".y")) |>
       dplyr::mutate(
@@ -195,10 +230,7 @@ viz_wlp_years <- function(from_season, until_season = from_season + 1, league = 
         secondary = ifelse(is.na(secondary), secondary.y, secondary)
       ) |>
       dplyr::select(-ends_with(".y"))  # Remove the extra columns
-
   }
-
-
 
   ### Creating an ordered vector (not factor) of teams based on accumulated Runs Differential. ----
   ### NOTE: This is because 'highcharter' hc_grid function plots charts in the order they are created and not based on factors (as ggplot)

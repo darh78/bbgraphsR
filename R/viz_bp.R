@@ -6,19 +6,18 @@
 
 
 
-viz_bp <- function(from_season, until_season = NULL, league = "all", bat_metric = "wOBA", pit_metric = "ERA") {
+viz_bp <- function(startseason, endseason = NULL, lg = "all", bat_metric = "wOBA", pit_metric = "ERA") {
 
-  if (is.null(until_season)) {
+  if (is.null(endseason)) {
 
     until_season <- from_season # meaning just 1 season will be retrieved
 
   } else {
-    seasons <- seq(from_season, until_season, by = 1)
+    seasons <- seq(startseason, endseason, by = 1)
   }
 
-  bat <- baseballr::fg_team_batter(x = from_season, y = until_season, league = league, exc_p = FALSE)
-  pit <- baseballr::fg_team_pitcher(x = from_season, y = until_season, league = league, ind = 1)
-
+  bat <- baseballr::fg_team_batter(startseason, endseason, lg)
+  pit <- baseballr::fg_team_pitcher(startseason, endseason, lg, ind = 1)
 
   bp <- dplyr::left_join(bat, pit,
                          by = c("Season", "Team"),
@@ -30,7 +29,7 @@ viz_bp <- function(from_season, until_season = NULL, league = "all", bat_metric 
   Teams_Lahman <- read.csv("data/Teams.csv")[ , -1]
 
   team_palette <- Teams_Lahman  |>
-    dplyr::filter(yearID == 2021)  |>
+    dplyr::filter(yearID == 2022)  |>
     dplyr::select(name, teamIDBR)
 
   team_palette$name[team_palette$teamIDBR == "LAA"] <- "Los Angeles Angels"

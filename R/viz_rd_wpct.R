@@ -243,7 +243,7 @@ viz_rd_wpct <- function(team, year) {
                             )
                             )  |>
       # Y axis definition
-      highcharter::hc_yAxis(title = list(text = "W %"),
+      highcharter::hc_yAxis(title = list(text = "Winning %"),
                             min = 0,
                             max = 1,
                             tickInterval = 0.1,
@@ -256,7 +256,7 @@ viz_rd_wpct <- function(team, year) {
                               )
                             )
                             )  |>
-      highcharter::hc_title(text = paste0(x, "<span style=\"background-color:#002d73\"> - Run Differential vs Winning % </span>"))  |>
+      highcharter::hc_title(text = paste0(x, "<span style=\"background-color:#002d73\"> - RD vs W% </span>"))  |>
       highcharter::hc_subtitle(text =
                                  if (length(teams_factor) > 1) {
                                    paste0(year, " Season. After ", max_games$max_games[max_games$Team == x], " games played.", "<br>",
