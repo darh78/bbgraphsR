@@ -236,7 +236,7 @@ viz_wlp_season <- function(lg_div, year) {
     ) |>
     highcharter::hc_subtitle(text =  "Solid line(s) represent the Division(s) leader(s)") |>
     highcharter::hc_credits(enabled = TRUE,
-                            text = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retreived on: ",
+                            text = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retrieved on: ",
                                           lubridate::with_tz(Sys.time(), "US/Eastern")  |>
                                             format("%Y-%m-%d %H:%M %Z")))  |>
     highcharter::hc_add_theme(highcharter::hc_theme_smpl()) |>
