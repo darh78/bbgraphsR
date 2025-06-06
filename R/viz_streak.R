@@ -25,7 +25,7 @@ viz_streak <- function(team, year) {
   if (intersect(grepl("AL|NL", team),
                 grepl("East|Central|West|Overall", team))) {
     # Division or leagues in that year
-    message(paste0("Retreiving teams that played in ", team, " in ", year, "..."))
+    message(paste0("Retrieving teams that played in ", team, " in ", year, "..."))
     teams <- baseballr::bref_standings_on_date(paste0(year,"-04-30"), team) |>
       as.data.frame() |>
       select(1) |>
@@ -36,7 +36,7 @@ viz_streak <- function(team, year) {
     # All MLB teams in year
     mlb <- c("AL Overall", "NL Overall")
 
-    message(paste0("Retreiving teams that played in ", team, " in ", year, "..."))
+    message(paste0("Retrieving teams that played in ", team, " in ", year, "..."))
     teams <- pbapply::pbsapply(mlb, baseballr::bref_standings_on_date, date = paste0(year,"-04-30"))
     teams <- c(teams[[1,1]], teams[[1,2]])
 
@@ -220,7 +220,7 @@ viz_streak <- function(team, year) {
                                  })  |>
       # adding credits and date when the chart was build
       highcharter::hc_credits(enabled = TRUE,
-                              text = paste0("Source: Baseball Reference. Using 'bbgraphsR' R package. Retreived on: ",
+                              text = paste0("Source: Baseball Reference. Using 'bbgraphsR' R package. Retrieved on: ",
                                             lubridate::with_tz(Sys.time(), "US/Eastern")  |>
                                               format("%Y-%m-%d %H:%M %Z")))  |>
       # enable exporting option
