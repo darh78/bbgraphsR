@@ -220,7 +220,7 @@ viz_streak <- function(team, year) {
                                  })  |>
       # adding credits and date when the chart was build
       highcharter::hc_credits(enabled = TRUE,
-                              text = paste0("Source: Baseball Reference. Using 'bbgraphsR' R package. Retreived on: ",
+                              text = paste0("Source: Baseball Reference. Using 'bbgraphsR' R package. Retrieved on: ",
                                             lubridate::with_tz(Sys.time(), "US/Eastern")  |>
                                               format("%Y-%m-%d %H:%M %Z")))  |>
       # enable exporting option

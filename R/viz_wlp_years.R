@@ -403,7 +403,7 @@ viz_wlp_years <- function(from_season, until_season = from_season + 1, league = 
         paste("W% in Reg. season (" , min(wl$Season), "-", max(wl$Season), "): <strong><span style='color: ", font_color, ";'>", teams_data$Wp_global[1]), "</span></strong> (", wl_whole$W, "-", wl_whole$L, ")")) |>
       # # adding credits and date when the chart was build
       highcharter::hc_credits(enabled = TRUE,
-                              text = paste0("Source: Fangraph. Using 'bbraphsR' package. Retreived on: ",
+                              text = paste0("Source: FanGraphs. Using 'bbgraphsR' package. Retrieved on: ",
                                             lubridate::with_tz(Sys.time(), "US/Eastern") |>
                                               format("%Y-%m-%d %H:%M %Z"))) |>
       # enable exporting option
