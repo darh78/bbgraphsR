@@ -4,6 +4,7 @@
 #'
 #' @param team a string input, Baseball Reference Team abbreviation, a division or the whole League
 #' @param year a numeric value, MLB season to be analyzed
+#' @param parallel Logical. Whether to use parallel processing (default is TRUE).
 #'
 #' @export
 #'
@@ -15,6 +16,7 @@
 #' @importFrom highcharter hchart hcaes hc_tooltip hc_add_theme hc_theme_smpl hc_xAxis hc_yAxis hc_title hc_subtitle hc_credits hc_exporting hw_grid hc_add_series
 #' @importFrom htmltools browsable
 #' @importFrom lubridate with_tz
+#' @importFrom future.apply future_lapply
 #'
 #' @return A areaspline-type chart with the accumulated run differential for the Team(s) along the season analyzed
 #'
@@ -28,7 +30,17 @@
 #' ## returns an RD chart for all the NL Central Teams in 2008, in descending order
 #'  }
 
-viz_rd <- function(team, year) {
+# Setup in-memory caching for team results
+if (!requireNamespace("memoise", quietly = TRUE)) {
+  stop("Package 'memoise' is required but not installed.")
+}
+
+# Create a memoised version of the function
+cached_bref_team_results <- memoise::memoise(baseballr::bref_team_results)
+
+#### Function viz_rd ----
+
+viz_rd <- function(team, year, parallel = TRUE) {
 
   ### Check if arguments are valid ----
   valid_teams <- c("AL East", "AL Central", "AL West", "AL Overall",
@@ -52,19 +64,58 @@ viz_rd <- function(team, year) {
                 grepl("East|Central|West|Overall", team))) {
     # Division or leagues in that year
     message(paste0("Retreiving teams that played in ", team, " in ", year, "..."))
-    teams <- baseballr::bref_standings_on_date(paste0(year,"-04-30"), team) |>
+    # Build a cache filename
+    cache_file <- file.path(tempdir(), paste0("standings_", gsub(" ", "_", team), "_", year, ".rds"))
+
+    if (file.exists(cache_file)) {
+      message("🗂️  Loading standings from cache...")
+      teams_df <- readRDS(cache_file)
+    } else {
+      message("🌐 Downloading standings from Baseball Reference...")
+      Sys.sleep(runif(1, 1.5, 3.5))  # Delay to avoid rate limit
+      teams_df <- tryCatch({
+        baseballr::bref_standings_on_date(paste0(year,"-04-30"), team)
+      }, error = function(e) {
+        stop(sprintf("❌ Failed to fetch standings: %s", e$message))
+      })
+      saveRDS(teams_df, cache_file)
+    }
+
+    teams <- teams_df |>
       as.data.frame() |>
-      select(1) |>
+      dplyr::select(1) |>
       unlist()
 
   } else if (team == "MLB") {
 
     # All MLB teams in year
     mlb <- c("AL Overall", "NL Overall")
+    teams_list <- list()
 
     message(paste0("Retreiving teams that played in ", team, " in ", year, "..."))
-    teams <- pbapply::pbsapply(mlb, baseballr::bref_standings_on_date, date = paste0(year,"-04-30"))
-    teams <- c(teams[[1,1]], teams[[1,2]])
+
+    for (lg in mlb) {
+      cache_file <- file.path(tempdir(), paste0("standings_", gsub(" ", "_", lg), "_", year, ".rds"))
+
+      ## Loading the teams, either from the cache or from the page
+      if (file.exists(cache_file)) {
+        message(paste0("🗂️  Loading cached standings for ", lg, "..."))
+        lg_standings <- readRDS(cache_file)
+      } else {
+        message(paste0("🌐 Fetching standings for ", lg, " ..."))
+        Sys.sleep(runif(1, 1.5, 3.5))  # random delay
+        lg_standings <- tryCatch({
+          baseballr::bref_standings_on_date(date = paste0(year, "-04-30"), division = lg)
+        }, error = function(e) {
+          stop(sprintf("❌ Failed to retrieve standings for %s — %s", lg, e$message))
+        })
+        saveRDS(lg_standings, cache_file)
+      }
+
+      teams_list[[lg]] <- lg_standings[[1]]
+    }
+
+    teams <- unlist(teams_list)
 
   } else {
     # Only one team
@@ -73,24 +124,54 @@ viz_rd <- function(team, year) {
 
   ### Get the game's results of each team to be visualized ----
 
-  message("Getting games' data ...")
+  # Define temporary cache file for full RD data
+  cache_file_rd <- file.path(tempdir(), paste0("games_rd_", gsub(" ", "_", team), "_", year, ".rds"))
 
-  # Gets the team's results tables for each team
-  rd <- pblapply(teams, baseballr::bref_team_results, year)
-  # Binds tables for all teams into one data frame
-  rd <- do.call("rbind", rd)
+  if (file.exists(cache_file_rd)) {
+    message("🗂️  Loading full run differential data from cache...")
+    rd <- readRDS(cache_file_rd)
+  } else {
+    message("🌐 Fetching all game results from Baseball Reference...")
 
-  # change Game variable to numeric
-  rd$Gm <- as.numeric(rd$Gm)
-  # change Runs Allowed variable to numeric
-  rd$RA <- as.numeric(rd$RA)
+    # Setup parallel plan if requested
+    if (parallel) {
+      future::plan(future::multisession)
+      rd <- future.apply::future_lapply(teams, function(t) {
+        cached_bref_team_results(t, year)
+      })
+    } else {
+      rd <- lapply(teams, function(t) {
+        cached_bref_team_results(t, year)
+      })
+    }
+
+    # Binds all individual teams' data into one dataframe
+    rd <- do.call("rbind", rd)
+
+    # Convert relevant columns to numeric
+    rd$Gm <- as.numeric(rd$Gm)
+    rd$RA <- as.numeric(rd$RA)
+
+    # Save the processed full RD table to temp cache
+    saveRDS(rd, cache_file_rd)
+  }
 
   ### Tidying the `rd` data frame ----
 
+  # Separate weekday and date
   rd <- rd |>
-    tidyr::separate(Date, c("wd", "Date"), sep = ", ") |>     # wd = weekday
-    tidyr::unite(Date, c("Date", "Year"), sep = ", ") |>
-    dplyr::select(Gm, Date, Tm, Opp, R, RA, Record, Rank, GB)  |>
+    tidyr::separate(Date, c("wd", "month_day"), sep = ", ")
+
+  # Remove trailing text like " (1)"
+  rd$month_day <- gsub("\\s*\\(.*\\)$", "", rd$month_day)
+
+  # Clean and convert to proper Date object
+  rd <- rd |>
+    dplyr::mutate(
+      month_day = trimws(month_day),
+      Date = as.Date(paste(month_day, year), format = "%b %d %Y")
+    ) |>
+    dplyr::select(Gm, Date, Tm, Opp, R, RA, Record, Rank, GB) |>
     dplyr::group_by(Tm) |>
     dplyr::mutate(RD = R - RA,
                   cum_RD = cumsum(RD)) |>
