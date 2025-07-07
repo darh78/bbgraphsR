@@ -4,7 +4,7 @@
 \alias{viz_wlp_season}
 \title{Scrapes MLB Standings in one specific season and visualizes a timeline of the winning percentage for any division or a league}
 \usage{
-viz_wlp_season(lg_div, year)
+viz_wlp_season(lg_div, year, type = c("highcharter", "ggplot"))
 }
 \arguments{
 \item{lg_div}{a string input, Baseball Reference Team abbreviation or a division (e.g. NL East, NL Central, NL West, NL Overall, AL East, AL Central, AL West, AL Overall or MLB)}

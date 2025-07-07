@@ -11,9 +11,11 @@
 #' @importFrom baseballr bref_standings_on_date bref_team_results
 #' @importFrom dplyr select bind_rows mutate rename arrange desc filter pull left_join
 #' @importFrom purrr map
+#' @import ggplot2
+#' @importFrom mlbplotR geom_mlb_logos
 #' @export viz_wlp_season
 
-viz_wlp_season <- function(lg_div, year) {
+viz_wlp_season <- function(lg_div, year, type = c("highcharter", "ggplot")) {
 
   ### Check if arguments are valid ----
   valid_lg_div <- c("AL East", "AL Central", "AL West", "AL Overall",
@@ -171,84 +173,152 @@ viz_wlp_season <- function(lg_div, year) {
 
   #### Plot W% timeline
 
-  wl <- highcharter::highchart()
+  ### In the case the chart is using highcharter
 
-  # Add series of GB for each team in the data frame
-  for (i in 1:length(unique_teams)) {
+  if (type == "highcharter") {
 
-    if (lg_div == "AL Overall" | lg_div == "NL Overall" | lg_div == "MLB") {
+    wl <- highcharter::highchart()
 
-      if (unique_teams[i] %in% leaders) {
+    # Add series of GB for each team in the data frame
+    for (i in 1:length(unique_teams)) {
 
-        # Creates series for teams leading their divisions (When requesting Overall)
-        wl <- wl |>
-          highcharter::hc_add_series(data = standings[standings$Team == unique_teams[i], ],
-                                     highcharter::hcaes(x = Date, y = Wpct),
-                                     name = unique_teams[i],
-                                     color = team_palette[team_palette$Team == unique_teams[i], 2],
-                                     type = "spline",
-                                     lineWidth = 4)
+      if (lg_div == "AL Overall" | lg_div == "NL Overall" | lg_div == "MLB") {
+
+        if (unique_teams[i] %in% leaders) {
+
+          # Creates series for teams leading their divisions (When requesting Overall)
+          wl <- wl |>
+            highcharter::hc_add_series(data = standings[standings$Team == unique_teams[i], ],
+                                       highcharter::hcaes(x = Date, y = Wpct),
+                                       name = unique_teams[i],
+                                       color = team_palette[team_palette$Team == unique_teams[i], 2],
+                                       type = "spline",
+                                       lineWidth = 4)
+
+        } else {
+
+          # Creates series for remaining teams (When requesting Overall)
+          wl <- wl |>
+            highcharter::hc_add_series(data = standings[standings$Team == unique_teams[i], ],
+                                       highcharter::hcaes(x = Date, y = Wpct),
+                                       name = unique_teams[i],
+                                       color = team_palette[team_palette$Team == unique_teams[i], 2],
+                                       type = "spline",
+                                       dashStyle = "ShortDashDotDot",
+                                       lineWidth = 2)
+        }
 
       } else {
-
-        # Creates series for remaining teams (When requesting Overall)
+        # Creates plot for requested division
         wl <- wl |>
           highcharter::hc_add_series(data = standings[standings$Team == unique_teams[i], ],
                                      highcharter::hcaes(x = Date, y = Wpct),
                                      name = unique_teams[i],
                                      color = team_palette[team_palette$Team == unique_teams[i], 2],
                                      type = "spline",
-                                     dashStyle = "ShortDashDotDot",
-                                     lineWidth = 2)
+                                     lineWidth = 3)
       }
 
-    } else {
-      # Creates plot for requested division
-      wl <- wl |>
-        highcharter::hc_add_series(data = standings[standings$Team == unique_teams[i], ],
-                                   highcharter::hcaes(x = Date, y = Wpct),
-                                   name = unique_teams[i],
-                                   color = team_palette[team_palette$Team == unique_teams[i], 2],
-                                   type = "spline",
-                                   lineWidth = 3)
     }
+
+    # Customize the W% plot
+    wl <- wl |>
+      highcharter::hc_xAxis(title = list(text = "Date"),
+                            type = "datetime") |> # X axis definition
+      highcharter::hc_yAxis(title = list(text = "W%"),
+                            max = 1,
+                            valueDecimals = 3) |> # Y axis definition
+      highcharter::hc_title(text =
+                              if (lg_div == "MLB")  {
+                                paste0("<span style=\"color:#002d73\"> MLB Teams - </span>",
+                                       lubridate::year(standings$Date[1]),
+                                       " - W% after games on ", max(standings$Date))
+                              } else {
+                                paste0("<span style=\"color:#002d73\"> MLB - </span>",
+                                       lubridate::year(standings$Date[1]),
+                                       lg_div,
+                                       " - W% after games on ", max(standings$Date))
+                              }
+      ) |>
+      highcharter::hc_subtitle(text =  "Solid line(s) represent the Division(s) leader(s)") |>
+      highcharter::hc_credits(enabled = TRUE,
+                              text = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retreived on: ",
+                                            lubridate::with_tz(Sys.time(), "US/Eastern")  |>
+                                              format("%Y-%m-%d %H:%M %Z")))  |>
+      highcharter::hc_add_theme(highcharter::hc_theme_smpl()) |>
+      highcharter::hc_tooltip(valueDecimals = 3,
+                              borderWidth = 1,
+                              table = TRUE, # adds color to team names in the tooltip
+                              sort = TRUE, # Future feature to show all the teams in the tooltip
+                              shared = TRUE, # Future feature to show all the teams in the tooltip
+                              borderColor = "#000000") |> # tooltip border color
+      highcharter::hc_exporting(enabled = TRUE) # enable exporting option
+
+
+    # print viz of Winning percentage in a season
+    print(wl)
 
   }
 
-  # Customize the W% plot
-  wl <- wl |>
-    highcharter::hc_xAxis(title = list(text = "Date"),
-                          type = "datetime") |> # X axis definition
-    highcharter::hc_yAxis(title = list(text = "W%"),
-                          max = 1,
-                          valueDecimals = 3) |> # Y axis definition
-    highcharter::hc_title(text =
-                            if (lg_div == "MLB")  {
-                              paste0("<span style=\"color:#002d73\"> MLB Teams - </span>",
-                                     lubridate::year(standings$Date[1]),
-                                     " - W% after games on ", max(standings$Date))
-                            } else {
-                              paste0("<span style=\"color:#002d73\"> MLB - </span>",
-                                     lubridate::year(standings$Date[1]),
-                                     lg_div,
-                                     " - W% after games on ", max(standings$Date))
-                            }
-    ) |>
-    highcharter::hc_subtitle(text =  "Solid line(s) represent the Division(s) leader(s)") |>
-    highcharter::hc_credits(enabled = TRUE,
-                            text = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retreived on: ",
-                                          lubridate::with_tz(Sys.time(), "US/Eastern")  |>
-                                            format("%Y-%m-%d %H:%M %Z")))  |>
-    highcharter::hc_add_theme(highcharter::hc_theme_smpl()) |>
-    highcharter::hc_tooltip(valueDecimals = 3,
-                            borderWidth = 1,
-                            table = TRUE, # adds color to team names in the tooltip
-                            sort = TRUE, # Future feature to show all the teams in the tooltip
-                            shared = TRUE, # Future feature to show all the teams in the tooltip
-                            borderColor = "#000000") |> # tooltip border color
-    highcharter::hc_exporting(enabled = TRUE) # enable exporting option
+  if (type == "ggplot") {
 
+    # Ensure mlbplotR is available
+    if (!requireNamespace("mlbplotR", quietly = TRUE)) {
+      stop("The package 'mlbplotR' is required to use this plot type. Please install it with install.packages('mlbplotR')")
+    }
 
-  # print viz of Winning percentage in a season
-  print(wl)
+    standings_plot <- standings |>
+      dplyr::filter(!is.na(Date)) |>
+      dplyr::mutate(
+        leader = ifelse(Team %in% leaders, TRUE, FALSE),
+        Date = as.Date(Date)
+      )
+
+    # Get last game per team
+    max_date <- max(standings_plot$Date, na.rm = TRUE)
+    last_point <- standings_plot |>
+      dplyr::group_by(Team) |>
+      dplyr::filter(Date == max(Date, na.rm = TRUE)) |>
+      dplyr::ungroup() |>
+      dplyr::mutate(Date = pmin(Date + 2, max_date + 2))
+
+    # Filter last_point before plotting
+    valid_teams <- mlbplotR::valid_team_names()
+    last_point <- last_point |> dplyr::filter(Team %in% valid_teams)
+
+    # Create ggplot
+    # Use team-specific colors
+    p <- ggplot(standings_plot, aes(x = Date, y = Wpct, group = Team, color = Team)) +
+      geom_smooth(aes(linewidth = leader), method = "loess", se = FALSE, span = 0.2, show.legend = FALSE) +
+      # scale_color_manual(values = mlbplotR::team_colors_logos$team_color2) +  # Apply original team colors
+
+      # Add logos at the final y value, offset right by 1 day
+      mlbplotR::geom_mlb_logos(
+        data = last_point,
+        aes(team_abbr = Team, x = Date, y = Wpct),
+        alpha = 0.75,        # transparency
+        width = 0.035,       # smaller size
+        inherit.aes = FALSE
+      ) +
+
+      # Color lines using team-specific colors
+      scale_color_manual(values = setNames(team_palette$primary, team_palette$Team)) +
+      scale_linewidth_manual(values = c("TRUE" = 1.5, "FALSE" = 0.6)) +
+      scale_y_continuous(limits = c(0, 1), name = "W%") +
+      scale_x_date(name = "Date") +
+      labs(
+        title = if (lg_div == "MLB") {
+          paste0("MLB Teams - ", lubridate::year(min(standings_plot$Date)), " - W% after games on ", max(standings_plot$Date))
+        } else {
+          paste0("MLB - ", lubridate::year(min(standings_plot$Date)), " ", lg_div, " - W% after games on ", max(standings_plot$Date))
+        },
+        subtitle = "Solid lines represent the Division(s) leader(s)",
+        caption = paste0("Source: Baseball Reference via baseballr | Retrieved: ",
+                         format(lubridate::with_tz(Sys.time(), "US/Eastern"), "%Y-%m-%d %H:%M %Z"))
+      ) +
+      theme_minimal(base_size = 13)
+
+    print(p)
+  }
+
 }
