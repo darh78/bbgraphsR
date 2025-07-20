@@ -15,7 +15,7 @@
 #' @importFrom mlbplotR geom_mlb_logos
 #' @export viz_wlp_season
 
-viz_wlp_season <- function(lg_div, year, type = c("highcharter", "ggplot")) {
+viz_wlp_season <- function(lg_div, year, type = "ggplot") {
 
   ### Check if arguments are valid ----
   valid_lg_div <- c("AL East", "AL Central", "AL West", "AL Overall",
@@ -79,67 +79,24 @@ viz_wlp_season <- function(lg_div, year, type = c("highcharter", "ggplot")) {
   standings$W <- as.numeric(standings$W)
   standings$L <- as.numeric(standings$L)
 
-  # Add the W% and pythWLpct columns to standings, as well as its difference
+  # Add the W% column to standing
 
   standings <- standings |>
-    dplyr::mutate(Wpct = W/(W+L),
-                  pythWpct = (R^1.81/(R^1.81+RA^1.81)),
+    dplyr::mutate(Wpct = W/(W+L))
+
+  standings <- standings |>
+    dplyr::arrange(Date) |>
+    dplyr::group_by(Team) |>
+    dplyr::mutate(R_cum = cumsum(R),
+                  RA_cum = cumsum(RA),
+                  pythWpct = (R_cum^1.81/(R_cum^1.81+RA_cum^1.81)),
                   Delta_Wpct_Pyth = Wpct - pythWpct)
 
+  # Identifying leaders
 
-  # Function to process league divisions and return leaders
-  get_league_leaders <- function(lg_div) {
-
-    # Define the division based on the lg_div input
-    divisions <- if (lg_div %in% c("AL Overall", "NL Overall")) {
-
-      paste0(substr(lg_div, 1, 2), c(" East", " Central", " West"))
-
-    } else if (lg_div %in% c("AL East", "AL Central", "AL West",
-                             "NL East", "NL Central", "NL West")) {
-
-      lg_div
-
-    } else if (lg_div == "MLB") {
-
-      c("AL East", "AL Central", "AL West", "NL East", "NL Central", "NL West")
-
-    }
-
-    message(paste("Getting", lg_div, "standings by", max(standings$Date), "..."))
-
-    leaders <- divisions |>
-      purrr::map(~ baseballr::bref_standings_on_date(max(standings$Date), .x)) |>
-      dplyr::bind_rows() |>
-      dplyr::mutate(GB = ifelse(GB == "--", 0, GB),
-                    GB = as.numeric(GB)) |>
-      dplyr::rename(Wpct = 'W-L%', pythwpct = 'pythW-L%') |>
-      dplyr::arrange(dplyr::desc(Wpct))
-
-    message(paste("Lines of", lg_div, "Division leader(s) by", max(standings$Date), "will be thicker in the plot"))
-
-    return(leaders)
-  }
-
-  # Then call your function as before:
-  if (lg_div %in% c("AL Overall", "NL Overall", "AL East", "AL Central", "AL West", "NL East", "NL Central", "NL West")) {
-
-    leaders <- get_league_leaders(lg_div)
-
-  } else if (lg_div == "MLB") {
-
-    leaders_AL <- get_league_leaders("AL Overall")
-    leaders_NL <- get_league_leaders("NL Overall")
-
-    # Combine AL and NL leaders into one data frame
-    leaders <- dplyr::bind_rows(leaders_AL, leaders_NL)
-  }
-
-
-  leaders <- leaders |>
-    dplyr::filter(GB == 0) |>
-    dplyr::pull(Tm)
-
+  leaders <- standings |>
+    dplyr::filter(Date == max(Date), Rank == 1) |>
+    dplyr::select(Team)
 
   # Create a table of colors by team
 
@@ -270,47 +227,103 @@ viz_wlp_season <- function(lg_div, year, type = c("highcharter", "ggplot")) {
     standings_plot <- standings |>
       dplyr::filter(!is.na(Date)) |>
       dplyr::mutate(
-        leader = ifelse(Team %in% leaders, TRUE, FALSE),
+        leader = ifelse(Team %in% leaders$Team, TRUE, FALSE),
+        linewidth = ifelse(leader, 1.5, 0.6),
+        linetype = ifelse(leader, "solid", "dashed"),
+        alpha = ifelse(leader, 0.9, 0.65),
         Date = as.Date(Date)
       )
 
     # Get last game per team
     max_date <- max(standings_plot$Date, na.rm = TRUE)
+    # Add to `last_point` if not already done
     last_point <- standings_plot |>
       dplyr::group_by(Team) |>
-      dplyr::filter(Date == max(Date, na.rm = TRUE)) |>
+      dplyr::filter(Date == max(Date)) |>
       dplyr::ungroup() |>
-      dplyr::mutate(Date = pmin(Date + 2, max_date + 2))
+      dplyr::mutate(
+        Date = Date + 2, # shifts logos right by 2 day
+        alpha = ifelse(leader, 1, 0.6),  # make leaders fully opaque
+        width = ifelse(leader, 0.015, 0.01)  # make all logos smaller
+      )
+
+    # Define a mapping vector
+    abbreviation_map <- c( "ATH" = "OAK",
+                           "CHW" = "CWS",
+                           "KCR" = "KC",
+                           "TBR" = "TB",
+                           "SDP" = "SD",
+                           "SFG" = "SF",
+                           "ARI" = "AZ",
+                           "WSN" = "WSH")
+
+    # Recode abbreviations in all datasets
+    team_palette$Team <- dplyr::recode(team_palette$Team, !!!abbreviation_map)
+    standings_plot$Team <- dplyr::recode(standings$Team, !!!abbreviation_map)
+    last_point$Team <- dplyr::recode(last_point$Team, !!!abbreviation_map)
 
     # Filter last_point before plotting
     valid_teams <- mlbplotR::valid_team_names()
+
+    missing_teams <- setdiff(last_point$Team, valid_teams)
+    if (length(missing_teams) > 0) {
+      warning("⚠️ Some teams have no logos available: ", paste(missing_teams, collapse = ", "))}
+
     last_point <- last_point |> dplyr::filter(Team %in% valid_teams)
+
+    # Create leaderboard table (logos + W% at top-right)
+    table_data <- last_point |>
+      dplyr::select(Team, Wpct, leader) |>
+      dplyr::filter(Team %in% valid_teams) |>
+      dplyr::arrange(desc(Wpct)) |>
+      dplyr::mutate(
+        rank = dplyr::row_number(),
+        n = dplyr::n(),
+        spacing = min(0.045, 0.9 / n),  # adjust spacing if too many teams
+        x = max(standings_plot$Date) + 2,
+        y = 0.5 + spacing * ((n - 1) / 2 - (rank - 1)),  # centered layout
+        label = sprintf("%.3f", Wpct),
+        alpha = ifelse(Team %in% leaders$Team, 1, 0.5), # 🔍 Set alpha based on leader status
+        text_color = ifelse(Wpct >= 0.5, "darkgreen", "firebrick"),
+        fontface = ifelse(leader, "bold", "plain")
+        )
+
 
     # Create ggplot
     # Use team-specific colors
-    p <- ggplot(standings_plot, aes(x = Date, y = Wpct, group = Team, color = Team)) +
-      geom_smooth(aes(linewidth = leader), method = "loess", se = FALSE, span = 0.2, show.legend = FALSE) +
-      # scale_color_manual(values = mlbplotR::team_colors_logos$team_color2) +  # Apply original team colors
-
-      # Add logos at the final y value, offset right by 1 day
-      mlbplotR::geom_mlb_logos(
-        data = last_point,
-        aes(team_abbr = Team, x = Date, y = Wpct),
-        alpha = 0.75,        # transparency
-        width = 0.035,       # smaller size
-        inherit.aes = FALSE
-      ) +
-
-      # Color lines using team-specific colors
-      scale_color_manual(values = setNames(team_palette$primary, team_palette$Team)) +
-      scale_linewidth_manual(values = c("TRUE" = 1.5, "FALSE" = 0.6)) +
+    p <- ggplot(standings_plot, aes(x = Date,
+                                    y = Wpct,
+                                    group = Team)) +
+      geom_line(aes(linewidth = linewidth,
+                    alpha = alpha,
+                    color = team_palette$primary[match(Team, team_palette$Team)]),
+                show.legend = FALSE) +
+      scale_color_identity() +
+      scale_linewidth_identity() +  # use fixed size values from data
+      scale_linetype_identity() +   # use "solid"/"dashed" from data
+      scale_alpha_identity() +      # use 1/0.75 from data
       scale_y_continuous(limits = c(0, 1), name = "W%") +
       scale_x_date(name = "Date") +
-      labs(
-        title = if (lg_div == "MLB") {
-          paste0("MLB Teams - ", lubridate::year(min(standings_plot$Date)), " - W% after games on ", max(standings_plot$Date))
+      mlbplotR::geom_mlb_scoreboard_logos(data = table_data,
+                                          aes(x = x,
+                                              y = y,
+                                              team_abbr = Team,
+                                              alpha = alpha),
+                                          width = 0.02,
+                                          inherit.aes = FALSE) +
+      geom_text(data = table_data,
+                aes(x = x + 2, y = y,
+                    label = label,
+                    color = text_color,
+                    fontface = fontface),
+                hjust = 0,
+                size = 3,
+                inherit.aes = FALSE) +
+      # scale_color_identity() +
+      labs(title = if (lg_div == "MLB") {
+          paste0("MLB Teams - ", lubridate::year(min(standings_plot$Date)), " - W%, after games on ", max(standings_plot$Date))
         } else {
-          paste0("MLB - ", lubridate::year(min(standings_plot$Date)), " ", lg_div, " - W% after games on ", max(standings_plot$Date))
+          paste0("MLB - ", lubridate::year(min(standings_plot$Date)), " ", lg_div, " - W%, after games on ", max(standings_plot$Date))
         },
         subtitle = "Solid lines represent the Division(s) leader(s)",
         caption = paste0("Source: Baseball Reference via baseballr | Retrieved: ",
