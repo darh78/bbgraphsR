@@ -184,7 +184,7 @@ viz_rd_team <- function(team, start_year, end_year, highlight_year = NULL) {
     highcharter::hc_subtitle(text = paste("Between ", start_year, " and", end_year, ", highlighting the ", highlight_year, "season."))  |>
     ## Adding notes in the bottom of  the chart
     highcharter::hc_credits(enabled = TRUE,                          # add credits
-                            text = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retreived on: ",
+                            text = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retrieved on: ",
                                           with_tz(Sys.time(), "US/Eastern")  |>
                                             format("%Y-%m-%d %H:%M %Z")))  |>
     ## Enabling the menu to export the charts

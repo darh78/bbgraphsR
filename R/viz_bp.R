@@ -116,7 +116,7 @@ viz_bp <- function(startseason, endseason = NULL, lg = "all", bat_metric = "wOBA
       highcharter::hc_subtitle(text = paste0(x, " Season")) |>
       # # adding credits and date when the chart was build
       highcharter::hc_credits(enabled = TRUE,
-                              text = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retreived on: ",
+                              text = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retrieved on: ",
                                             lubridate::with_tz(Sys.time(), "US/Eastern")  |>
                                               format("%Y-%m-%d %H:%M %Z")))  |>
       # enable exporting option
@@ -193,8 +193,8 @@ viz_bp <- function(startseason, endseason = NULL, lg = "all", bat_metric = "wOBA
  #    ggplot2::labs(
  #      title = "MLB Teams wRC+ vs. ERA-",
  #      subtitle = paste0(season_data$Season[1], " Season"),
- #      caption = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retreived on: ",
- #                       lubridate::with_tz(Sys.time(), "US/Eastern")))
+#      caption = paste0("Source: Baseball Reference. Using 'baseballr' R package. Retrieved on: ",
+#                       lubridate::with_tz(Sys.time(), "US/Eastern")))
  #
  # } )
  #
