@@ -4,12 +4,14 @@
 \alias{viz_rd}
 \title{Graph of Accumulated Runs Differential for teams}
 \usage{
-viz_rd(team, year)
+viz_rd(team, year, parallel = TRUE)
 }
 \arguments{
 \item{team}{a string input, Baseball Reference Team abbreviation, a division or the whole League}
 
 \item{year}{a numeric value, MLB season to be analyzed}
+
+\item{parallel}{Logical. Whether to use parallel processing (default is TRUE).}
 }
 \value{
 A areaspline-type chart with the accumulated run differential for the Team(s) along the season analyzed

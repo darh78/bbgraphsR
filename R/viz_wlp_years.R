@@ -17,36 +17,7 @@
 #' @examples viz_wlp_years(2020, 2023)
 
 
-viz_wlp_years <- function(from_season, until_season = from_season + 1, league = "all", fran_tm = "franchise") {
-
-  ### Check if arguments are valid ----
-
-  # Check from_season is either NULL (default value) or is in the numeric format
-  if (!is.null(from_season) && !is.numeric(from_season)) {
-
-    stop(paste0("The 'from_season' argument must be a numeric value representing the first year to analyze. It must be between 1876 and less than 'until_season' argument"))
-
-  }
-
-  # Check if until_season is in the numeric format
-  if (!is.numeric(until_season)) {
-
-    stop(paste0("The 'until_season' argument must be a numeric value representing the last year to analyze. It must greater than the 'from_season' argument and less than the current/last season"))
-
-  }
-
-  # Check if from_season is less than until_season
-  if (!(is.numeric(until_season) && is.numeric(from_season) && from_season < until_season)) {
-    stop(paste0("The 'from_season' argument must be less than the 'until_season'"))
-  }
-
-  # Check if league is within the accepted values
-  valid_league <- c("nl", "al", "all")
-
-  if (!(league %in% valid_league)) {
-    stop("The 'league' argument must be any of the following possibilities:
-         nl, al, all")
-  }
+viz_wlp_years <- function(start_season, end_season, fran_tm = "franchise") {
 
   # Check if fran_tm is within the accepted values
   valid_type <- c("franchise", "team")
@@ -56,41 +27,17 @@ viz_wlp_years <- function(from_season, until_season = from_season + 1, league = 
          franchise or team")
   }
 
-  # Check until_season is in the worst case the current year
-  current_year <- as.numeric(format(Sys.Date(), "%Y"))
+  # Get the standings in the period requested (the function below checks validity of its own arguments)
 
-  if (!(!is.null(until_season) && is.numeric(until_season) && until_season >= 1876 && until_season <= current_year)) {
-    stop(paste0("The 'until_season' argument must be a numeric value between 1876 and the last/current MLB season"))
-  }
-
-  # If all arguments are valid, continue with the function
-
-  ### Defining the years to analyze ----
-  if (is.null(from_season)) { # If no starting season has been defined, at least two years will be considered to be analyzed
-    from_season <- until_season - 1
-  }
-
-  # Define a sequence of years to analyze
-  seasons <- seq(from_season, until_season, by = 1)   # Moved out of the else block to be always defined
-
-
-  ### Getting W-L data in the requested period ----
-  message(paste0("Getting W-L data about teams/franchises that played between ", from_season, " to ", until_season, " ..."))
-
-  # Use purrr::map to iterate over the seasons and collect data
-  wl <- purrr::map_dfr(seasons, function(season) {
-    baseballr::fg_team_pitcher(startseason = as.character(season), endseason = as.character(season), lg = league, ind = 1) |>
-      dplyr::select(Season, Team = team_name, W, L) |>
-      dplyr::mutate(WLpct = round(W / (W+L), 3))
-  })
+  wl <- get_standings_years(start_season, end_season) |>
+    dplyr::select(Year, Team, W, L, Wpct)
 
   # Continue with the original grouping and arranging
   wl <- wl |>
     dplyr::group_by(Team) |>
-    dplyr::arrange(Season) |>
+    dplyr::arrange(Year) |>
     dplyr::ungroup()
 
-  wl$Season <- as.numeric(wl$Season)
 
   ### Create a table of colors by team and also if they clinched the playoffs and won the World Series ----
 
@@ -105,6 +52,31 @@ viz_wlp_years <- function(from_season, until_season = from_season + 1, league = 
 
 
   teams_meta$name[teams_meta$teamIDBR == "LAA"] <- "Los Angeles Angels"
+
+  # Step 1: Identify teams and seasons missing in teams_meta
+  missing_teams <- wl |>
+    dplyr::anti_join(teams_meta, by = c("Team" = "teamIDBR", "Season" = "yearID")) |>
+    dplyr::distinct(Team, Season)
+
+  # Step 2: For each missing team, find the last available season in teams_meta and duplicate selected columns only
+  new_teams_meta <- missing_teams |>
+    dplyr::group_by(Team) |>
+    dplyr::mutate(last_season_info = purrr::map(Team, function(t) {
+      teams_meta |>
+        dplyr::filter(Team == t) |>
+        dplyr::slice_max(Season, with_ties = FALSE) |>
+        dplyr::select(teamIDBR, franchID, active, lgID, divID, primary, secondary)  # Select only desired columns
+    })) |>
+    tidyr::unnest(last_season_info, names_sep = "_") |>
+    dplyr::mutate(Season = Season,  # Keep the original Season from missing_teams
+                  .keep = "unused")   # Keep the new season and discard extra columns
+
+  # Optional: If you want to clean up column names
+  new_teams_meta <- new_teams_meta |>
+    dplyr::rename_with(~gsub("_.*", "", .), starts_with("last_season_info"))  # Remove suffix for cleaner column names
+
+
+
 
   teamcolors <- read.csv("data/teamcolors.csv")[ , -1] |>
     dplyr::filter(league == "mlb")
@@ -206,7 +178,7 @@ viz_wlp_years <- function(from_season, until_season = from_season + 1, league = 
 
 
   # Identify rows for the most recent season
-  recent_season_rows <- wl %>% dplyr::filter(Season == max(Season))
+  recent_season_rows <- wl |> dplyr::filter(Season == max(Season))
 
   # Check if 'TeamName' has any missing values in the recent season
   if (any(is.na(recent_season_rows$TeamName))) {
@@ -241,7 +213,8 @@ viz_wlp_years <- function(from_season, until_season = from_season + 1, league = 
       dplyr::group_by(Team)  |>
       dplyr::summarise(W = sum(W), L = sum(L))  |>
       dplyr::mutate(Wp_global = round(W / (W+L), 3))  |>
-      dplyr::arrange(dplyr::desc(Wp_global))
+      dplyr::arrange(dplyr::desc(Wp_global)) |>
+      dplyr::filter(!is.na(Team))
 
   } else if (fran_tm == "franchise") {
 
@@ -249,7 +222,8 @@ viz_wlp_years <- function(from_season, until_season = from_season + 1, league = 
       dplyr::group_by(franchID)  |>
       dplyr::summarise(W = sum(W), L = sum(L))  |>
       dplyr::mutate(Wp_global = round(W / (W+L), 3))  |>
-      dplyr::arrange(dplyr::desc(Wp_global))
+      dplyr::arrange(dplyr::desc(Wp_global)) |>
+      dplyr::filter(!is.na(franchID))
 
   }
 
@@ -313,7 +287,7 @@ viz_wlp_years <- function(from_season, until_season = from_season + 1, league = 
                                              y = WLpct),
                           Opacity = 0.9,
                           name = "W%",
-                          color = teams_data$primary[length(teams_data$primary)],
+                          color = teams_data$primary[1],
                           zIndex = 10) |>
       highcharter::hc_plotOptions(spline = list(lineWidth = 4)) |>  # adjust line width here
       # adding markers if the team ended best as a Wild Card

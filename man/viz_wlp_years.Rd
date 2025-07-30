@@ -4,21 +4,16 @@
 \alias{viz_wlp_years}
 \title{Scrapes MLB teams winning percentage from fangraphs.com along a period of years (at least 2 consecutive seasons) and visualizes a timeline for each team or franchise along that period}
 \usage{
-viz_wlp_years(
-  from_season,
-  until_season = NULL,
-  league = "all",
-  fran_tm = "franchise"
-)
+viz_wlp_years(start_season, end_season, fran_tm = "franchise")
 }
 \arguments{
-\item{from_season}{a numeric value, first season you want to analyze (Default value is NULL, meaning one year before the 'until_season' argument)}
-
-\item{until_season}{a numeric value, last season you want to analyze (in the worst case it must be the current/last MLB season)}
-
-\item{league}{a string input, Option for limiting results to different leagues or overall results. Options are "al", "nl", or "all".}
-
 \item{fran_tm}{a string input, Option for indicating if the plot will be grouped by teams or by franchises (useful if period of season is longer)}
+
+\item{from_season}{a numeric value, first season you want to analyze (Should be at least a year before the last/current season)}
+
+\item{until_season}{a numeric value, last season you want to analyze (Default value is 1 year after the input given in the 'from_season' argument)}
+
+\item{league}{a string input, Option for limiting results to different leagues or overall results. Options are "al", "nl", or "all" (default value).}
 }
 \description{
 Scrapes MLB teams winning percentage from fangraphs.com along a period of years (at least 2 consecutive seasons) and visualizes a timeline for each team or franchise along that period

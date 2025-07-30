@@ -17,80 +17,7 @@
 
 viz_wlp_season <- function(lg_div, year, type = "ggplot") {
 
-  ### Check if arguments are valid ----
-  valid_lg_div <- c("AL East", "AL Central", "AL West", "AL Overall",
-                    "NL East", "NL Central", "NL West", "NL Overall", "MLB")
-
-  if (!(lg_div %in% valid_lg_div)) {
-    stop("The 'lg_div' argument must be any of the following se possibilities:
-         AL East, AL Central, AL West, AL Overall, NL East, NL Central, NL West, NL Overall or MLB")
-  }
-
-  current_year <- as.numeric(format(Sys.Date(), "%Y"))
-
-  if (!(is.numeric(year) && year >= 1876 && year <= current_year)) {
-    stop(paste0("The 'year' must be a numeric value between 1876 and the last/current MLB season"))
-  }
-
-  # If both arguments are valid, continue with the function
-
-  ### Identify 'lg_div' input and get names of teams to visualize ----
-
-  if (intersect(grepl("AL|NL", lg_div),
-                grepl("East|Central|West|Overall", lg_div))) {
-    # Division or leagues in that year
-    message(paste0("Retreiving teams that played in ", lg_div, " in ", year, "..."))
-    teams <- baseballr::bref_standings_on_date(paste0(year,"-04-30"), lg_div) |>
-      as.data.frame() |>
-      dplyr::select(1) |>
-      unlist()
-
-  } else if (lg_div == "MLB") {
-    message(paste0("Retreiving teams that played in ", lg_div, " in ", year, "..."))
-    teams_al <- baseballr::bref_standings_on_date(paste0(year,"-04-30"), "AL Overall")
-    teams_nl <- baseballr::bref_standings_on_date(paste0(year,"-04-30"), "NL Overall")
-    teams <- rbind(teams_al, teams_nl) |>
-      as.data.frame() |>
-      dplyr::select(1) |>
-      unlist()
-
-  }
-
-  ### Get the game's results of each league to be visualized ----
-
-  message("Getting games' data ...")
-
-  # Gets the team's results tables for each team
-  standings <- pbapply::pblapply(teams, baseballr::bref_team_results, year)
-  # Binds tables for all teams into one data frame
-  standings <- do.call("rbind", standings)
-  # Remove the parentheses and the number inside them that could be in the Date column
-  standings$Date <- gsub("\\s*\\(\\d+\\)", "", standings$Date)
-
-  ####### SAVED -----^^^^^^^^^^
-
-  standings <- standings |>
-    dplyr::select(Game = Gm, Date, Team = Tm, R, RA, Record, Rank, GB, Year) |>
-    tidyr::unite(Date, c("Date", "Year"), sep = " ", remove = TRUE) |>
-    tidyr::separate(Record, c("W", "L"), sep = "-", remove = FALSE)
-
-  # change some variable types
-  standings$Date <- as.Date(standings$Date, format = "%A, %b %d %Y")
-  standings$W <- as.numeric(standings$W)
-  standings$L <- as.numeric(standings$L)
-
-  # Add the W% column to standing
-
-  standings <- standings |>
-    dplyr::mutate(Wpct = W/(W+L))
-
-  standings <- standings |>
-    dplyr::arrange(Date) |>
-    dplyr::group_by(Team) |>
-    dplyr::mutate(R_cum = cumsum(R),
-                  RA_cum = cumsum(RA),
-                  pythWpct = (R_cum^1.81/(R_cum^1.81+RA_cum^1.81)),
-                  Delta_Wpct_Pyth = Wpct - pythWpct)
+  standings <- get_standings_season(lg_div, year)
 
   # Identifying leaders
 
@@ -325,8 +252,8 @@ viz_wlp_season <- function(lg_div, year, type = "ggplot") {
         } else {
           paste0("MLB - ", lubridate::year(min(standings_plot$Date)), " ", lg_div, " - W%, after games on ", max(standings_plot$Date))
         },
-        subtitle = "Solid lines represent the Division(s) leader(s)",
-        caption = paste0("Source: Baseball Reference via baseballr | Retrieved: ",
+        subtitle = "Thicker lines represent the Division(s) leader(s)",
+        caption = paste0("Source: Baseball Reference via baseballr | Retrieved on: ",
                          format(lubridate::with_tz(Sys.time(), "US/Eastern"), "%Y-%m-%d %H:%M %Z"))
       ) +
       theme_minimal(base_size = 13)
