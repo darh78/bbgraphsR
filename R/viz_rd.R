@@ -30,14 +30,6 @@
 #' ## returns an RD chart for all the NL Central Teams in 2008, in descending order
 #'  }
 
-# Setup in-memory caching for team results
-if (!requireNamespace("memoise", quietly = TRUE)) {
-  stop("Package 'memoise' is required but not installed.")
-}
-
-# Create a memoised version of the function
-cached_bref_team_results <- memoise::memoise(baseballr::bref_team_results)
-
 #### Function viz_rd ----
 
 viz_rd <- function(team, year, parallel = TRUE) {
@@ -123,6 +115,14 @@ viz_rd <- function(team, year, parallel = TRUE) {
   }
 
   ### Get the game's results of each team to be visualized ----
+
+  # Setup in-memory caching for team results
+  if (!requireNamespace("memoise", quietly = TRUE)) {
+    stop("Package 'memoise' is required but not installed.")
+  }
+
+  # Create a memoised version of the function
+  cached_bref_team_results <- memoise::memoise(baseballr::bref_team_results)
 
   # Define temporary cache file for full RD data
   cache_file_rd <- file.path(tempdir(), paste0("games_rd_", gsub(" ", "_", team), "_", year, ".rds"))
