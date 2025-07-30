@@ -44,8 +44,12 @@ This simulates loading the package as if it were installed, without actually ins
 # Load the package code
 devtools::load_all()
 
-# Run a function
-scrape_country_birth_players("Dominican Republic")
+# Run some functions
+get_players_by_country(c("Dominican Republic", "Venezuela"))
+
+viz_wlp_season("AL East", 2025)
+
+viz_debut_running_total(c("Dominican Republic", "Venezuela", "Japan", "Mexico", "Puerto Rico", "Cuba" ))
 ```
 
 ### 📌 Notes

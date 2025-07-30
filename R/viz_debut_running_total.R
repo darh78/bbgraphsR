@@ -60,7 +60,7 @@ viz_debut_running_total <- function(countries) {
     geom_line(linewidth = 1) +
     ggimage::geom_image(
       data = label_points,
-      aes(x = Year + 3, y = RunningTotal, image = FlagURL),
+      aes(x = Year + 5, y = RunningTotal, image = FlagURL),
       size = 0.04,
       inherit.aes = FALSE
     ) +
