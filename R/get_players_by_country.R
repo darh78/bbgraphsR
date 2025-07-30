@@ -1,11 +1,11 @@
-#' @title Scrape MLB Players Born in a Given Country
+#' @title Scrape MLB Players Born in given Countries
 #'
 #' @description
 #' Scrapes the Baseball Reference website for a table of all MLB players born
-#' in the specified country. The function returns the full table with cleaned
+#' in the specified countries. The function returns the full table with cleaned
 #' columns, converts birth dates and debut dates to `Date` class, splits the
-#' birthplace into city and state (if available), and sorts the players by
-#' debut date (ascending).
+#' birthplace into city and state (if available), sorts the players by
+#' debut date (ascending), and fetches the Baseball Reference unique `PlayerID` for each player
 #'
 #' @param country A character vector of country names (e.g., "Dominican Republic", "Venezuela").
 #'
@@ -24,12 +24,12 @@
 #'   scrape_country_birth_players(c("Venezuela", "Cuba"))
 #' }
 #'
-#' @importFrom rvest read_html html_node html_table
+#' @importFrom rvest read_html html_node html_table html_attr
 #' @importFrom dplyr mutate filter arrange bind_rows
-#' @importFrom stringr str_replace_all str_trim word str_detect
+#' @importFrom stringr str_replace_all str_trim word str_detect str_extract str_remove
 #' @importFrom lubridate mdy
 #' @export
-scrape_country_birth_players <- function(country) {
+get_players_by_country <- function(country) {
 
   scrape_single_country <- function(cn) {
     slug <- str_replace_all(cn, " ", "-")
@@ -37,6 +37,18 @@ scrape_country_birth_players <- function(country) {
 
     tryCatch({
       page <- read_html(url)
+
+      # Get the player IDs from the anchor tags in the name column
+      name_links <- page  |>
+        html_node("table")  |>
+        html_nodes("tbody tr td:nth-child(2) a")  |>
+        html_attr("href")
+
+      # Extract playerID from each URL
+      player_ids <- name_links  |>
+        str_extract("[a-z0-9]+\\.shtml")  |>
+        str_remove("\\.shtml")
+
       tbl <- page |>
         html_node("table") |>
         html_table(fill = TRUE)
@@ -47,7 +59,8 @@ scrape_country_birth_players <- function(country) {
         mutate(
           Birthdate = suppressWarnings(mdy(Birthdate)),
           Debut = suppressWarnings(mdy(Debut)),
-          Country = cn
+          Country = cn,
+          PlayerID = player_ids
         )
 
       # Extract City and State if possible
