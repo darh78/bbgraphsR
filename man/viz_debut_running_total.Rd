@@ -4,10 +4,14 @@
 \alias{viz_debut_running_total}
 \title{Plot Running Total of MLB Debuts by Country}
 \usage{
-viz_debut_running_total(countries)
+viz_debut_running_total(countries, start = NULL, end = NULL)
 }
 \arguments{
 \item{countries}{A character vector of country names (e.g. "Dominican Republic", "Venezuela")}
+
+\item{start}{Optional. An integer year (e.g. 1990) to begin the plot. Default: show all available data.}
+
+\item{end}{Optional. An integer year (e.g. 2020) to end the plot. Default: show all available data.}
 }
 \value{
 A ggplot2 object (line chart of cumulative MLB debuts).
@@ -18,7 +22,7 @@ of MLB player debuts over time. Countries can be compared via color-coded lines.
 }
 \examples{
 \dontrun{
-  plot_debut_running_total(c("Venezuela", "Dominican Republic", "Cuba"))
+  viz_debut_running_total(c("Venezuela", "Dominican Republic", "Cuba"))
 }
 
 }
