@@ -22,14 +22,19 @@ Imports:
     xml2 (>= 1.3.8),
     rvest (>= 1.0.4),
     stringr (>= 1.5.1),
-    png,
-    grid
+    httr (>= 1.4.7),
+    tibble (>= 3.3.0),
+    ggplot2 (>= 3.5.2),
+    png (>= 0.1),
+    grid (>= 4.5.1),
+    rappdirs (>= 0.3.3)
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.2
 Suggests: 
     testthat (>= 3.0.0),
-    mlbplotR (>= 1.1.0)
+    mlbplotR (>= 1.1.0),
+    arrow,
 Config/testthat/edition: 3
 Depends: 
     R (>= 3.5)

@@ -14,14 +14,16 @@
 
 # Create the data (used once)
 country_flags <- data.frame(
-  Country = c("Dominican Republic", "Venezuela", "Cuba", "Puerto Rico", "Japan", "Mexico"),
+  Country = c("Dominican Republic", "Venezuela", "Cuba", "Puerto Rico", "Japan", "Mexico", "Panama", "Colombia"),
   FlagURL = c(
     "https://flagcdn.com/w40/do.png",
     "https://flagcdn.com/w40/ve.png",
     "https://flagcdn.com/w40/cu.png",
     "https://flagcdn.com/w40/pr.png",
     "https://flagcdn.com/w40/jp.png",
-    "https://flagcdn.com/w40/mx.png"
+    "https://flagcdn.com/w40/mx.png",
+    "https://flagcdn.com/w40/pa.png",
+    "https://flagcdn.com/w40/co.png"
   ),
   stringsAsFactors = FALSE
 )
