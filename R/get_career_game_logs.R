@@ -2,48 +2,47 @@
 #'
 #' Downloads and caches batting game logs from Baseball Reference for all players
 #' in a given metadata data frame. Logs are saved to Parquet cache and also returned
-#' as R objects. Supports both regular-season and postseason logs.
+#' as tidy tibbles. Supports both regular-season and postseason logs.
 #'
 #' @param metadata_df A data frame with at least the columns:
 #'   `Name`, `From`, `To`, `PlayerID`, and `Country`.
-#' @param include_postseason Logical, default `TRUE`. If `TRUE`, also scrape postseason logs (one extra request per player)
-#' @param split_postseason_result Logical, default `TRUE`. If TRUE, return per-player list with separate
-#'   `regular` and `postseason` tibbles; if `FALSE`, return a single tibble
-#'   that *combines* regular+postseason using an Arrow-safe union with aligned schemas.
-#' @param sleep_sec Number of seconds to wait between requests (to be polite).
+#' @param include_postseason Logical, default `FALSE`. If `TRUE`, also scrape postseason logs
+#'   (one extra request per player).
+#' @param split_postseason_result Logical, default `TRUE`. If `TRUE`, return **two**
+#'   separate tibbles: `regular` and `postseason`. If `FALSE`, return a **single tibble**
+#'   combining whatever is included (regular ± postseason) and add `Gcar_real`
+#'   reindexed across all rows in chronological order.
+#' @param sleep_sec Seconds to wait between requests (politeness).
 #' @param jitter_sec Random jitter (uniform 0–`jitter_sec`) added to `sleep_sec`.
-#' @param overwrite_cache Logical, default `FALSE`. If `TRUE`, forces re-download
-#'   even if data exists in the Parquet cache.
-#' @param compression Compression algorithm for Parquet files.
-#'   One of `"zstd"` (default) or `"snappy"`.
-#' @param verbose Logical, default `interactive()`. If `TRUE`, prints progress
-#'   messages during scraping and caching.
+#' @param overwrite_cache If `TRUE`, force re-download even if cache exists.
+#' @param compression Parquet codec: `"zstd"` (default) or `"snappy"`.
+#' @param verbose If `TRUE`, print status/progress.
 #'
 #' @return
-#' If `split_postseason_result = TRUE`, a named list keyed by `PlayerID`, where each
-#' element is itself a list with `$regular` and `$postseason` tibbles (or `NULL` if absent).
-#' If `split_postseason_result = FALSE`, a single tibble combining all regular season logs.
+#' If `split_postseason_result = TRUE` (default), a list with two tibbles:
+#' \describe{
+#'   \item{regular}{All regular-season logs combined.}
+#'   \item{postseason}{All postseason logs combined.}
+#' }
+#'
+#' If `split_postseason_result = FALSE`, a single tibble combining all logs
+#' that were requested (regular ± postseason) with an extra `Gcar_real` column
+#' that reindexes games across the whole career chronologically.
 #'
 #' @examples
 #' \dontrun{
-#' # Example metadata
-#' players <- tibble::tibble(
-#'   Name = c("Miguel Cabrera"),
-#'   From = 2003, To = 2023,
-#'   PlayerID = "cabremi01",
-#'   Country = "Venezuela"
-#' )
+#' # One tibble: combined reg+post with Gcar_real
+#' logs <- get_career_game_logs(players, split_postseason_result = FALSE)
 #'
-#' # Get logs (both reg + postseason, returned separately)
-#' logs <- get_career_game_logs(players)
-#'
-#' # Convert list of postseason logs into one tibble
-#' post_tbl <- logs_list_to_tibble(logs, "postseason")
+#' # Two tibbles: reg and post separately
+#' logs_split <- get_career_game_logs(players, split_postseason_result = TRUE)
+#' logs_split$regular
+#' logs_split$postseason
 #' }
 #'
 #' @export
 get_career_game_logs <- function(metadata_df,
-                                 include_postseason = TRUE,
+                                 include_postseason = FALSE,
                                  split_postseason_result = TRUE,
                                  sleep_sec = 3,
                                  jitter_sec = 0.5,
@@ -64,15 +63,18 @@ get_career_game_logs <- function(metadata_df,
   SEASON_CAP_WARN <- getOption("bbgraphsR.season_cap_warn", 100L)
 
   if (interactive() && total_seasons_est >= SEASON_CAP_WARN) {
-    msg <- sprintf(
-      paste0("This job may fetch up to %d regular-season pages",
-             if (isTRUE(include_postseason)) " + %d postseason pages" else "",
-             " (≈ %d total). Continue?"),
-      total_seasons_est,
-      if (isTRUE(include_postseason)) nrow(md) else NULL,
-      total_pages_est
+    # Build a message whose number of %d matches the arguments (no sprintf pitfalls)
+    msg_parts <- c(
+      sprintf("This job may fetch up to %d regular-season pages (if not in cache)", total_seasons_est),
+      if (isTRUE(include_postseason)) sprintf(" + %d postseason pages", nrow(md)) else NULL,
+      sprintf(" (≈ %d total).", total_pages_est),
+      "\nDo you want to continue?"
     )
-    ans <- utils::askYesNo(msg)
+    msg <- paste0(msg_parts, collapse = "")
+
+    # Print the message cleanly, then ask Yes/No
+    message(msg)
+    ans <- utils::askYesNo("Continue?")
     if (is.na(ans) || !ans) {
       message("Aborted by user before scraping.")
       return(invisible(tibble::tibble()))
@@ -89,22 +91,37 @@ get_career_game_logs <- function(metadata_df,
     if (verbose) message("PlayerID: ", pid, " (", row_meta$From, "–", row_meta$To, ")")
 
     # ── If not overwriting and data exists in parquet, short‑circuit ─────────
+    # ---------- cache short-circuit -----------------------------------------
     if (!overwrite_cache) {
-      # When the caller wants a single tibble, read the combined (both) now.
-      if (!split_postseason_result) {
-        combined <- bbgr_parquet_read_player(pid, season_type = "both", return = "tibble")
-        if (!is.null(combined)) {
-          out_list[[pid]] <- combined
-          next
-        }
-      } else {
-        # For split mode, try to load each part
+      if (isTRUE(split_postseason_result) && isTRUE(include_postseason)) {
+        # split AND postseason requested → return list only here
         reg_ds  <- bbgr_parquet_read_player(pid, season_type = "regular",   return = "tibble")
         post_ds <- bbgr_parquet_read_player(pid, season_type = "postseason", return = "tibble")
         if (!is.null(reg_ds) || !is.null(post_ds)) {
-          assign(pid, list(regular = reg_ds, postseason = post_ds), envir = bbgr_mem_cache())
           out_list[[pid]] <- list(regular = reg_ds, postseason = post_ds)
           next
+        }
+      } else if (isTRUE(split_postseason_result) && !isTRUE(include_postseason)) {
+        # split requested but postseason = FALSE → return a SINGLE tibble (regular only)
+        reg_ds <- bbgr_parquet_read_player(pid, season_type = "regular", return = "tibble")
+        if (!is.null(reg_ds)) {
+          out_list[[pid]] <- reg_ds
+          next
+        }
+      } else {
+        # non-split mode → single tibble (both or regular)
+        if (isTRUE(include_postseason)) {
+          combined <- bbgr_parquet_read_player(pid, season_type = "both", return = "tibble")
+          if (!is.null(combined)) {
+            out_list[[pid]] <- .add_career_gcar(combined)
+            next
+          }
+        } else {
+          reg_only <- bbgr_parquet_read_player(pid, season_type = "regular", return = "tibble")
+          if (!is.null(reg_only)) {
+            out_list[[pid]] <- reg_only
+            next
+          }
         }
       }
     }
@@ -163,28 +180,33 @@ get_career_game_logs <- function(metadata_df,
     assign(pid, list(regular = reg, postseason = post), envir = bbgr_mem_cache())
 
     #### ── Return shape ──────────────────────────────────────────────────────── ####
-    if (isTRUE(split_postseason_result)) {
+    # ---- choose the per-player result shape (STILL INSIDE THE LOOP) --------
+    if (isTRUE(split_postseason_result) && isTRUE(include_postseason)) {
+      # list entry with $regular / $postseason
       out_list[[pid]] <- list(regular = reg, postseason = post)
     } else {
-      # 🔹 NEW: read back the Arrow‑safe combined (both) with aligned schemas
-      combined <- bbgr_parquet_read_player(pid, season_type = "both", return = "tibble")
-      out_list[[pid]] <- combined
+      # single tibble per player
+      if (isTRUE(include_postseason)) {
+        # combine reg + post and add Gcar_real only when postseason included
+        combined <- dplyr::bind_rows(Filter(Negate(is.null), list(reg, post)))
+        out_list[[pid]] <- if (nrow(combined)) .add_career_gcar(combined) else tibble::tibble()
+      } else {
+        out_list[[pid]] <- if (!is.null(reg)) reg else tibble::tibble()
+      }
     }
-  }
+  } # <--- CLOSE the for-loop RIGHT HERE
 
-  #### Final return ───────────────────────────────────────────────────────────####
-  if (isTRUE(split_postseason_result)) {
+  # ---- Final return (NOW OUTSIDE THE LOOP) ---------------------------------
+  if (isTRUE(include_postseason) && isTRUE(split_postseason_result)) {
+    # per-player list of {regular, postseason}
     return(out_list)
   } else {
-    out <- Filter(Negate(is.null), out_list)
-    if (length(out) == 0L) return(tibble::tibble())
-    combined <- dplyr::bind_rows(out)
-
-    # 🆕 only add Gcar_real when we asked for reg+post combined
-    if (isTRUE(include_postseason)) {
-      combined <- .add_career_gcar(combined)
+    # flatten to a single tibble
+    out <- Filter(is.data.frame, out_list)  # only keep tibbles
+    if (!length(out)) {
+      return(tibble::tibble())
+    } else {
+      return(dplyr::bind_rows(out))
     }
-
-    return(combined)
   }
 }
