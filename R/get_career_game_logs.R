@@ -52,8 +52,32 @@ get_career_game_logs <- function(metadata_df,
                                  verbose = interactive()) {
 
   compression <- match.arg(compression)
+
   md <- metadata_df |>
     dplyr::distinct(PlayerID, .keep_all = TRUE)
+
+#### Estimate maximum number of seasons/pages to scrape ───────────────────── ####
+  seasons_per_player <- md$To - md$From + 1L
+  total_seasons_est  <- sum(seasons_per_player)
+  total_pages_est    <- total_seasons_est + if (isTRUE(include_postseason)) nrow(md) else 0L
+
+  SEASON_CAP_WARN <- getOption("bbgraphsR.season_cap_warn", 100L)
+
+  if (interactive() && total_seasons_est >= SEASON_CAP_WARN) {
+    msg <- sprintf(
+      paste0("This job may fetch up to %d regular-season pages",
+             if (isTRUE(include_postseason)) " + %d postseason pages" else "",
+             " (≈ %d total). Continue?"),
+      total_seasons_est,
+      if (isTRUE(include_postseason)) nrow(md) else NULL,
+      total_pages_est
+    )
+    ans <- utils::askYesNo(msg)
+    if (is.na(ans) || !ans) {
+      message("Aborted by user before scraping.")
+      return(invisible(tibble::tibble()))
+    }
+  }
 
   out_list <- vector("list", length = nrow(md))
   names(out_list) <- md$PlayerID
@@ -85,43 +109,60 @@ get_career_game_logs <- function(metadata_df,
       }
     }
 
-    # ── Regular season: fetch per-year ───────────────────────────────────────
-    reg_years <- list()
-    for (yr in seq(row_meta$From, row_meta$To)) {
-      url <- .gl_url(pid, yr, postseason = FALSE)
-      if (verbose) message("  Year ", yr, ": ", url)
-      resp <- httr::GET(url)
-      if (httr::status_code(resp) != 200L) {
-        Sys.sleep(sleep_sec + stats::runif(1, 0, jitter_sec))
-        next
+    #### Regular season: fetch per-year ─────────────────────────────────────── ####
+    years <- seq(row_meta$From, row_meta$To)
+    reg_years <- vector("list", length(years))
+    names(reg_years) <- as.character(years)
+
+    if (verbose && interactive()) {
+      message("Scraping ", row_meta$Name, " (", length(years),
+              " seasons", if (include_postseason) " + postseason" else "", ")...")
+      pb <- utils::txtProgressBar(min = 0, max = length(years) + as.integer(include_postseason), style = 3)
+    } else {
+      pb <- NULL
+    }
+
+    step <- 0L
+    for (yr in years) {
+      resp <- httr::GET(.gl_url(pid, yr, postseason = FALSE))
+      if (httr::status_code(resp) == 200L) {
+        df <- .parse_table(resp, yr, pid, row_meta, postseason = FALSE, verbose = FALSE)
+        if (!is.null(df) && nrow(df)) reg_years[[as.character(yr)]] <- df
       }
-      df <- .parse_table(resp, yr, pid, row_meta, postseason = FALSE, verbose = verbose)
-      if (!is.null(df) && nrow(df)) reg_years[[as.character(yr)]] <- df
+      step <- step + 1L
+      if (!is.null(pb)) utils::setTxtProgressBar(pb, step)
       Sys.sleep(sleep_sec + stats::runif(1, 0, jitter_sec))
     }
-    reg <- if (length(reg_years)) dplyr::bind_rows(reg_years) else NULL
 
-    # ── Postseason (optional) ────────────────────────────────────────────────
+    reg <- if (length(Filter(Negate(is.null), reg_years))) {
+      dplyr::bind_rows(Filter(Negate(is.null), reg_years))
+    } else NULL
+
+    #### ── Postseason (optional) ────────────────────────────────────────────────####
     post <- NULL
     if (isTRUE(include_postseason)) {
-      url <- .gl_url(pid, yr = 0, postseason = TRUE)
-      if (verbose) message("  Postseason: ", url)
-      resp <- httr::GET(url)
+      resp <- httr::GET(.gl_url(pid, yr = 0, postseason = TRUE))
       if (httr::status_code(resp) == 200L) {
-        post <- .parse_table(resp, yr = 0, pid, row_meta, postseason = TRUE, verbose = verbose)
+        post <- .parse_table(resp, yr = 0, pid, row_meta, postseason = TRUE, verbose = FALSE)
         if (!is.null(post) && nrow(post) == 0L) post <- NULL
       }
+      step <- step + 1L
+      if (!is.null(pb)) utils::setTxtProgressBar(pb, step)
       Sys.sleep(sleep_sec + stats::runif(1, 0, jitter_sec))
     }
 
-    # ── Persist what we got to Parquet ───────────────────────────────────────
+    # ✅ Close the progress bar and print a done line (after regular + optional postseason)
+    if (!is.null(pb)) close(pb)
+    if (verbose) message(" ✅ Done: ", row_meta$Name, " (", pid, ")")
+
+    #### Persist what we got to Parquet ─────────────────────────────────────── ####
     if (!is.null(reg)  && nrow(reg))  bbgr_parquet_append(reg,  keep_cols = names(reg),  compression = compression)
     if (!is.null(post) && nrow(post)) bbgr_parquet_append(post, keep_cols = names(post), compression = compression)
 
-    # ── In‑memory cache for split mode ───────────────────────────────────────
+    #### ── In‑memory cache for split mode ─────────────────────────────────────── ####
     assign(pid, list(regular = reg, postseason = post), envir = bbgr_mem_cache())
 
-    # ── Return shape ────────────────────────────────────────────────────────
+    #### ── Return shape ──────────────────────────────────────────────────────── ####
     if (isTRUE(split_postseason_result)) {
       out_list[[pid]] <- list(regular = reg, postseason = post)
     } else {
@@ -131,7 +172,7 @@ get_career_game_logs <- function(metadata_df,
     }
   }
 
-  # ── Final return ───────────────────────────────────────────────────────────
+  #### Final return ───────────────────────────────────────────────────────────####
   if (isTRUE(split_postseason_result)) {
     return(out_list)
   } else {
