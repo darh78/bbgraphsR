@@ -9,9 +9,7 @@
 viz_bp <- function(startseason, endseason = NULL, lg = "all", bat_metric = "wOBA", pit_metric = "ERA") {
 
   if (is.null(endseason)) {
-
-    until_season <- from_season # meaning just 1 season will be retrieved
-
+    seasons <- startseason
   } else {
     seasons <- seq(startseason, endseason, by = 1)
   }
