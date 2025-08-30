@@ -50,7 +50,22 @@ bbgr_parquet_dir <- local({
     }
     dir
   }
-})
+}
+)
+
+#' Open the bbgraphsR cache folder in the system file browser
+#'
+#' Opens the folder returned by [bbgr_parquet_dir()] in your OS file manager.
+#' @return Invisibly returns the cache directory path.
+#' @export
+bbgr_open_cache <- function() {
+  path <- bbgr_parquet_dir()
+  if (!dir.exists(path)) {
+    dir.create(path, recursive = TRUE, showWarnings = FALSE)
+  }
+  utils::browseURL(path)
+  invisible(path)
+}
 
 # Append player data to Parquet cache, in a subfolder for season type
 # (partition by PlayerID and Year so reads are fast & simple)
@@ -205,7 +220,6 @@ bbgr_parquet_read_player <- function(player_id,
   }
 }
 
-# List players in parquet cache
 # List players in the Parquet cache (robust)
 bbgr_parquet_list <- function() {
   root <- bbgr_parquet_dir()
@@ -265,7 +279,6 @@ bbgr_parquet_list <- function() {
 
 # Clear parquet cache
 #' @export
-# Clear parquet cache
 bbgr_parquet_clear <- function(player_id = NULL, ask = TRUE) {
   root <- bbgr_parquet_dir()
 
@@ -304,28 +317,6 @@ bbgr_clear_all <- function(player_ids = NULL, ask = TRUE) {
   } else {
     rm(list = intersect(player_ids, ls(bbgr_mem_cache())), envir = bbgr_mem_cache())
     for (pid in player_ids) bbgr_parquet_clear(pid, ask = FALSE)
-  }
-
-  invisible(TRUE)
-}
-# Clear both caches for player(s)
-# Clear both caches for player(s)
-bbgr_clear_all <- function(player_ids = NULL, ask = TRUE) {
-  # If nothing provided, we are going to wipe everything
-  if (is.null(player_ids) && isTRUE(ask)) {
-    ans <- utils::askYesNo("This will DELETE the entire cache (memory + disk). Continue?")
-    if (is.na(ans) || !ans) {
-      message("Aborted: cache not cleared.")
-      return(invisible(FALSE))
-    }
-  }
-
-  if (is.null(player_ids)) {
-    rm(list = ls(bbgr_mem_cache()), envir = bbgr_mem_cache())
-    bbgr_parquet_clear()
-  } else {
-    rm(list = intersect(player_ids, ls(bbgr_mem_cache())), envir = bbgr_mem_cache())
-    for (pid in player_ids) bbgr_parquet_clear(pid)
   }
 
   invisible(TRUE)

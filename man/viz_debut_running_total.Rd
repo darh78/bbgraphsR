@@ -4,7 +4,7 @@
 \alias{viz_debut_running_total}
 \title{Plot Running Total of MLB Debuts by Country}
 \usage{
-viz_debut_running_total(countries, start = NULL, end = NULL)
+viz_debut_running_total(countries, start = NULL, end = NULL, save = TRUE)
 }
 \arguments{
 \item{countries}{A character vector of country names (e.g. "Dominican Republic", "Venezuela")}
@@ -12,6 +12,8 @@ viz_debut_running_total(countries, start = NULL, end = NULL)
 \item{start}{Optional. An integer year (e.g. 1990) to begin the plot. Default: show all available data.}
 
 \item{end}{Optional. An integer year (e.g. 2020) to end the plot. Default: show all available data.}
+
+\item{save}{Optional. A Boolean option. To exclude saving the chart to the /output folder}
 }
 \value{
 A ggplot2 object (line chart of cumulative MLB debuts).

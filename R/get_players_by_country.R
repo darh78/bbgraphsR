@@ -32,7 +32,7 @@
 get_players_by_country <- function(country) {
 
   scrape_single_country <- function(cn) {
-    slug <- str_replace_all(cn, " ", "-")
+    slug <- stringr::str_replace_all(cn, " ", "-")
     url <- paste0("https://www.baseball-reference.com/bio/", slug, "_born.shtml")
 
     tryCatch({

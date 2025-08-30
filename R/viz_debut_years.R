@@ -28,12 +28,10 @@
 #'   viz_debut_years(c("Japan", "Mexico", "Puerto Rico"), start = 1980, end = 2025)
 #' }
 #'
-#' @import ggplot2
 #' @import dplyr
 #' @importFrom lubridate year
 #' @importFrom ggpubr ggtexttable ttheme
-#' @importFrom grid annotation_custom
-#' @importFrom ggplot2 annotate
+#' @importFrom ggplot2 annotate annotation_custom
 #' @export
 viz_debut_years <- function(countries, start = NULL, end = NULL) {
 
@@ -74,25 +72,22 @@ viz_debut_years <- function(countries, start = NULL, end = NULL) {
   # Peak table and text
   peak_table <- debut_yearly |>
     group_by(Country) |>
-    dplyr::slice_max(order_by = Debuts, n = 1) |>
-    arrange(desc(Debuts)) |>
-    select(Country, Year, Debuts)
+    filter(Debuts == max(Debuts)) |>
+    summarise(
+      Year = paste(sort(Year), collapse = ", "),
+      Debuts = dplyr::first(Debuts),
+      .groups = "drop"
+    ) |>
+    arrange(desc(Debuts))
 
   # Format column names
-  colnames(peak_table) <- c("Country", "Year", "Debuts")
+  colnames(peak_table) <- c("Country", "Year(s)", "Players")
 
-  # Create the ggtexttable object
   peak_tbl <- ggtexttable(
     peak_table,
     rows = NULL,
-    theme = ttheme("classic")  # or use another theme
+    theme = ttheme("classic")
   )
-
-  # Peak text
-  peak_text <- peak_table |>
-    mutate(Text = paste0(Country, ": ", Debuts, " debuts in ", Year)) |>
-    pull(Text) |>
-    paste(collapse = "\n")
 
   # Step 8: Summary for subtitle
   first_debut <- format(min(df$Debut), "%d-%b-%Y")
@@ -111,7 +106,7 @@ viz_debut_years <- function(countries, start = NULL, end = NULL) {
   fallback_font <- if ("Roboto" %in% systemfonts::system_fonts()$family) "Roboto" else "sans"
 
   # Step 12: Plot (grouped columns)
-  p <- p <- ggplot(debut_yearly, aes(x = Year, y = Debuts, fill = Country)) +
+  p <- ggplot(debut_yearly, aes(x = Year, y = Debuts, fill = Country)) +
     geom_col(position = "dodge", width = 0.8) +
     labs(
       title = "MLB Debuts Per Year by Country",
@@ -122,8 +117,8 @@ viz_debut_years <- function(countries, start = NULL, end = NULL) {
     scale_x_continuous(breaks = pretty(debut_yearly$Year, n = 10)) +
     theme_bbgraphs(font_family = fallback_font) +
     labs(
-      title = "Yearly MLB Player Debuts by Country",
-      subtitle = paste("First player debut on", first_debut, "and last one on", last_debut),
+      title = paste0("Yearly MLB Player Debuts by Country (", min_year, "-", max_year, ")"),
+      subtitle = paste("First player debuted on", first_debut, "and the last one on", last_debut),
       x = "Year",
       y = "Number of Debuts",
       caption = paste("Data retrieved on:", scrape_date)
@@ -134,8 +129,8 @@ viz_debut_years <- function(countries, start = NULL, end = NULL) {
   p <- p +
     annotation_custom(
       grob = ggplotGrob(peak_tbl),
-      xmin = min(debut_yearly$Year) + 2,  # adjust for padding
-      xmax = min(debut_yearly$Year) + 45,
+      xmin = min(debut_yearly$Year) + 1,  # adjust for padding
+      xmax = min(debut_yearly$Year) + 20,
       ymin = max(debut_yearly$Debuts) - 5,
       ymax = max(debut_yearly$Debuts)
     ) +
@@ -143,11 +138,10 @@ viz_debut_years <- function(countries, start = NULL, end = NULL) {
              x = min(debut_yearly$Year) + 2,
              y = max(debut_yearly$Debuts) + 2,
              label = "Years with Most Debuts",
-             hjust = 0, size = 4, fontface = "bold")
+             hjust = 0, size = 4, fontface = "plain")
+
   p
 
   # Save
   ggsave("output/mlb_debuts_yearly_grouped.png", plot = p, width = 12, height = 8, dpi = 320, bg = "gray90")
-
-  return(p)
 }
