@@ -24,6 +24,10 @@
   df <- bbgr_normalize_gamelog(df)
   df <- .align_postseason_headers(df)
 
+  # drop optional fantasy columns that vary by season/era
+  drop_cols <- intersect(c("DFS(DK)", "DFS(FD)", "DFS_DK", "DFS_FD"), names(df))
+  if (length(drop_cols)) df[drop_cols] <- NULL
+
   # keep only real games (don’t rely on Date being present)
   df <- .keep_only_games(df)
   if (!nrow(df)) return(NULL)

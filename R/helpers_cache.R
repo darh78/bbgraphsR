@@ -119,6 +119,9 @@ bbgr_parquet_read_player <- function(player_id,
     # Let Arrow auto-detect hive-style partitions (PlayerID, Year)
     ds <- arrow::open_dataset(path)   # <- removed partitioning="hive"
 
+    # Drop fantasy columns that vary by season/era (prevents schema conflicts)
+    ds <- dplyr::select(ds, -dplyr::any_of(c("DFS(DK)", "DFS(FD)", "DFS_DK", "DFS_FD")))
+
     # Ensure PlayerID exists as a column (since we opened at PlayerID=... level)
     if (!("PlayerID" %in% names(ds))) {
       ds <- dplyr::mutate(ds, PlayerID = player_id)
@@ -179,6 +182,9 @@ bbgr_parquet_read_player <- function(player_id,
     ds_combined
   } else {
     out <- dplyr::collect(ds_combined)
+
+  # (Optional) also drop fantasy columns in the materialized tibble
+    out <- dplyr::select(out, -dplyr::any_of(c("DFS(DK)", "DFS(FD)", "DFS_DK", "DFS_FD")))
 
     # canonicalize order again post-collect (harmless if already done)
     if (isTRUE(enforce_canonical)) {
