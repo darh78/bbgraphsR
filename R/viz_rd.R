@@ -4,7 +4,6 @@
 #'
 #' @param team a string input, Baseball Reference Team abbreviation, a division or the whole League
 #' @param year a numeric value, MLB season to be analyzed
-#' @param parallel Logical. Whether to use parallel processing (default is TRUE).
 #'
 #' @export
 #'
@@ -16,7 +15,7 @@
 #' @importFrom highcharter hchart hcaes hc_tooltip hc_add_theme hc_theme_smpl hc_xAxis hc_yAxis hc_title hc_subtitle hc_credits hc_exporting hw_grid hc_add_series
 #' @importFrom htmltools browsable
 #' @importFrom lubridate with_tz
-#' @importFrom future.apply future_lapply
+#'
 #'
 #' @return A areaspline-type chart with the accumulated run differential for the Team(s) along the season analyzed
 #'
@@ -30,7 +29,7 @@
 
 #### Function viz_rd ----
 
-viz_rd <- function(team, year, parallel = TRUE) {
+viz_rd <- function(team, year) {
   on.exit(try(closeAllConnections(), silent = TRUE), add = TRUE)
 
   ### Check if arguments are valid ----
@@ -51,8 +50,46 @@ viz_rd <- function(team, year, parallel = TRUE) {
 
   ### Identify 'team' input type and get names of teams to visualize ----
 
-  if (intersect(grepl("AL|NL", team),
-                grepl("East|Central|West|Overall", team))) {
+  # Helper to fetch earliest standings from season start with a progress bar.
+  # Phase 1: Search daily from Mar 25 to Apr 05 (earliest typical Opening Day window).
+  # Phase 2: If none found, widen search to Apr 06–May 15 and use first available.
+  fetch_division_teams <- function(div, yr) {
+    search_and_pick <- function(start_str, end_str) {
+      dates <- seq(as.Date(sprintf("%s-%s", yr, start_str)),
+                   as.Date(sprintf("%s-%s", yr, end_str)), by = "1 day")
+      message(sprintf("  Probing standings dates from %s to %s...", format(dates[1], "%Y-%m-%d"), format(dates[length(dates)], "%Y-%m-%d")))
+      pb <- utils::txtProgressBar(min = 0, max = length(dates), style = 3)
+      on.exit(try(close(pb), silent = TRUE), add = TRUE)
+      last_err <- NULL
+      for (i in seq_along(dates)) {
+        dt <- dates[i]
+        res <- suppressWarnings(tryCatch({
+          baseballr::bref_standings_on_date(date = format(dt, "%Y-%m-%d"), division = div)
+        }, error = function(e) e))
+        utils::setTxtProgressBar(pb, i)
+        if (!inherits(res, "error") && !is.null(res)) {
+          df <- as.data.frame(res)
+          if (nrow(df) > 0) return(list(df = df, last_err = last_err))
+        } else if (inherits(res, "error")) {
+          last_err <- res$message
+        }
+      }
+      return(list(df = NULL, last_err = last_err))
+    }
+
+    # Phase 1: Mar 25–Apr 05
+    r1 <- search_and_pick("03-25", "04-05")
+    if (!is.null(r1$df)) return(r1$df)
+
+    # Phase 2: Apr 06–May 15 (fallback)
+    r2 <- search_and_pick("04-06", "05-15")
+    if (!is.null(r2$df)) return(r2$df)
+
+    last_err <- r2$last_err
+    stop(sprintf(" Failed to fetch standings for %s in %s (searched Mar 25–May 15). Last error: %s", div, yr, ifelse(is.null(last_err), "unknown", last_err)))
+  }
+
+  if (grepl("AL|NL", team) & grepl("East|Central|West|Overall", team)) {
     # Division or leagues in that year
     message(paste0("Retreiving teams that played in ", team, " in ", year, "..."))
     # Build a cache filename
@@ -65,17 +102,46 @@ viz_rd <- function(team, year, parallel = TRUE) {
       message(" Downloading standings from Baseball Reference...")
       Sys.sleep(runif(1, 1.5, 3.5))  # Delay to avoid rate limit
       teams_df <- tryCatch({
-        baseballr::bref_standings_on_date(paste0(year,"-04-30"), team)
+        fetch_division_teams(team, year)
       }, error = function(e) {
-        stop(sprintf(" Failed to fetch standings: %s", e$message))
+        message("  Standings not available up to May 15: ", conditionMessage(e))
+        NULL
       })
-      saveRDS(teams_df, cache_file)
+      if (!is.null(teams_df)) saveRDS(teams_df, cache_file)
     }
 
-    teams <- teams_df |>
-      as.data.frame() |>
-      dplyr::select(1) |>
-      unlist()
+    # Fallback mapping for early-season if standings are unavailable
+    fallback_division_teams <- function(div) {
+      al_east <- c("BAL","BOS","NYY","TBR","TOR")
+      al_central <- c("CHW","CLE","DET","KCR","MIN")
+      al_west <- c("HOU","LAA","OAK","SEA","TEX")
+      nl_east <- c("ATL","MIA","NYM","PHI","WSN")
+      nl_central <- c("CHC","CIN","MIL","PIT","STL")
+      nl_west <- c("ARI","COL","LAD","SDP","SFG")
+      switch(div,
+             "AL East" = al_east,
+             "AL Central" = al_central,
+             "AL West" = al_west,
+             "NL East" = nl_east,
+             "NL Central" = nl_central,
+             "NL West" = nl_west,
+             "AL Overall" = c(al_east, al_central, al_west),
+             "NL Overall" = c(nl_east, nl_central, nl_west),
+             character(0))
+    }
+
+    if (!is.null(teams_df)) {
+      # Prefer 'Tm' column if available, otherwise take first col
+      teams_df <- as.data.frame(teams_df)
+      first_col <- if ("Tm" %in% names(teams_df)) "Tm" else names(teams_df)[1]
+      teams <- unlist(teams_df[[first_col]])
+    } else {
+      message("  Using fallback team list for ", team, ".")
+      teams <- fallback_division_teams(team)
+    }
+    if (length(teams) == 0 || all(is.na(teams))) {
+      stop(sprintf(" No teams found for %s in %s using standings up to May 15.", team, year))
+    }
 
   } else if (team == "MLB") {
 
@@ -96,14 +162,21 @@ viz_rd <- function(team, year, parallel = TRUE) {
         message(paste0(" Fetching standings for ", lg, " ..."))
         Sys.sleep(runif(1, 1.5, 3.5))  # random delay
         lg_standings <- tryCatch({
-          baseballr::bref_standings_on_date(date = paste0(year, "-04-30"), division = lg)
+          fetch_division_teams(lg, year)
         }, error = function(e) {
-          stop(sprintf(" Failed to retrieve standings for %s % %s", lg, e$message))
+          message("  Standings not available up to May 15 for ", lg, ": ", conditionMessage(e))
+          NULL
         })
-        saveRDS(lg_standings, cache_file)
+        if (!is.null(lg_standings)) saveRDS(lg_standings, cache_file)
       }
 
-      teams_list[[lg]] <- lg_standings[[1]]
+      if (!is.null(lg_standings)) {
+        teams_list[[lg]] <- if ("Tm" %in% names(lg_standings)) lg_standings$Tm else lg_standings[[1]]
+      } else {
+        # Fallback to static mapping if standings unavailable
+        teams_list[[lg]] <- if (lg == "AL Overall") c("BAL","BOS","NYY","TBR","TOR","CHW","CLE","DET","KCR","MIN","HOU","LAA","OAK","SEA","TEX")
+                            else c("ATL","MIA","NYM","PHI","WSN","CHC","CIN","MIL","PIT","STL","ARI","COL","LAD","SDP","SFG")
+      }
     }
 
     teams <- unlist(teams_list)
@@ -132,23 +205,29 @@ viz_rd <- function(team, year, parallel = TRUE) {
   } else {
     message(" Fetching all game results from Baseball Reference...")
 
-    # Setup parallel plan if requested
-    if (parallel) {
-      future::plan(future::multisession)
-      rd <- future.apply::future_lapply(teams, function(t) {
-        cached_bref_team_results(t, year)
-      })
-    } else {
-      rd <- lapply(teams, function(t) {
-        cached_bref_team_results(t, year)
+    # Fetch each team's results with a progress bar
+    get_team_results_safe <- function(t, yr) {
+      tryCatch({
+        cached_bref_team_results(t, yr)
+      }, error = function(e) {
+        message(sprintf("  Skipping %s: %s", t, conditionMessage(e)))
+        NULL
       })
     }
 
+    # Sequential with progress bar
+    rd <- pbapply::pblapply(teams, function(t) get_team_results_safe(t, year))
+
     # Binds all individual teams' data into one dataframe
+    rd <- Filter(Negate(is.null), rd)
+    if (length(rd) == 0) {
+      stop(" No game results could be retrieved for the selected teams.")
+    }
     rd <- do.call("rbind", rd)
 
     # Convert relevant columns to numeric
     rd$Gm <- as.numeric(rd$Gm)
+    rd$R <- as.numeric(rd$R)
     rd$RA <- as.numeric(rd$RA)
 
     # Save the processed full RD table to temp cache
@@ -192,8 +271,8 @@ viz_rd <- function(team, year, parallel = TRUE) {
   }
 
   ### Defining min & max for yAxis to be the same for all charts ----
-  min_RD <- floor(min(rd$cum_RD)/10)*10
-  max_RD <- ceiling(max(rd$cum_RD)/10)*10
+  min_RD <- floor(min(rd$cum_RD, na.rm = TRUE)/10)*10
+  max_RD <- ceiling(max(rd$cum_RD, na.rm = TRUE)/10)*10
 
   # interval in y axis to allow a better adjustment of y min and max
   if (max_RD <= 120) {
@@ -315,7 +394,7 @@ viz_rd <- function(team, year, parallel = TRUE) {
       highcharter::hc_add_theme(hc_theme_smpl())  |>
       # X axis definition
       highcharter::hc_xAxis(title = list(text = "Games"),
-                            tickInterval = "1")  |>
+                            tickInterval = 1)  |>
       # Y axis definition
       highcharter::hc_yAxis(title = list(text = "R Diff"),
                             min = min_RD,
