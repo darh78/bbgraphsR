@@ -22,8 +22,6 @@ A areaspline & line types chart with the accumulated run differential for the Te
 Graph of Accumulated Runs Differential for a team over several seasons
 }
 \examples{
-viz_rd_team("BOS", 2017, 2022, 2018)
-## returns an RD chart for BOS between 2010-2022, highlighting 2018
 \dontrun{
 viz_rd_team("TBR", 2019, 2023)
 ## returns an RD chart for TBR between 2015-2023, highlighting 2023

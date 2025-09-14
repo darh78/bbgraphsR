@@ -1,0 +1,25 @@
+---
+title: "Test for video embedded"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+You can add options to executable code like this
+
+::: {#fig-cern}
+{{< video https://baseballsavant.mlb.com/sporty-videos?playId=064e8918-e2b7-40f0-ac39-968932652154 >}}
+
+The video "CERN: The Journey of Discovery"
+:::
+
+In @fig-cern...
+
+The `echo: false` option disables the printing of code (only output is displayed).

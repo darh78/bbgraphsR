@@ -10,6 +10,10 @@ viz_wlp_season(lg_div, year, type = "ggplot")
 \item{lg_div}{a string input, Baseball Reference Team abbreviation or a division (e.g. NL East, NL Central, NL West, NL Overall, AL East, AL Central, AL West, AL Overall or MLB)}
 
 \item{year}{a numeric value, MLB season to be analyzed}
+
+\item{type}{character, plotting backend to use: either
+"ggplot" (default) for a static ggplot2 chart with team logos,
+or "highcharter" for an interactive Highcharts visualization}
 }
 \description{
 This function allows you to scrape the standings from MLB teams for a specific season, and visualize one chart of Winning percentage of teams during that season.

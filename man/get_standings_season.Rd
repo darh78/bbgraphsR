@@ -12,10 +12,14 @@ get_standings_season(lg_div, year, parallel = TRUE)
 "NL East", "NL Central", "NL West", "NL Overall", or "MLB".}
 
 \item{year}{A numeric value indicating the MLB season year.}
+
+\item{parallel}{Logical; if TRUE (default), fetch team results in parallel
+using future.apply with a progress bar; if FALSE, use a sequential
+progress-aware loop.}
 }
 \value{
 A data frame containing team standings and game results with columns:
-  Game, Date, Team, R, RA, Record, Rank, GB, W, L, Wpct, R_cum, RA_cum, pythWpct, Delta_Wpct_Pyth.
+Game, Date, Team, R, RA, Record, Rank, GB, W, L, Wpct, R_cum, RA_cum, pythWpct, Delta_Wpct_Pyth.
 }
 \description{
 This function retrieves the game results and standings for teams in a given MLB division/league and season.

@@ -7,8 +7,8 @@
 \format{
 A data frame with 2 columns:
 \describe{
-  \item{Country}{Character: country name as it appears in the player data}
-  \item{FlagURL}{Character: URL to a 40px PNG flag image}
+\item{Country}{Character: country name as it appears in the player data}
+\item{FlagURL}{Character: URL to a 40px PNG flag image}
 }
 }
 \source{
@@ -19,6 +19,6 @@ country_flags
 }
 \description{
 A dataset mapping country names to 40px PNG flag images hosted on flagcdn.com.
-Intended for use with functions like `viz_debut_running_total()`.
+Intended for use with functions like \code{viz_debut_running_total()}.
 }
 \keyword{datasets}

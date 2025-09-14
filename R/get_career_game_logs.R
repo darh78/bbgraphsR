@@ -3,6 +3,7 @@
 #' Downloads and caches batting game logs from Baseball Reference for all players
 #' in a given metadata data frame. Logs are saved to Parquet cache and also returned
 #' as tidy tibbles. Supports both regular-season and postseason logs.
+#' @importFrom dplyr distinct
 #'
 #' @param metadata_df A data frame with at least the columns:
 #'   `Name`, `From`, `To`, `PlayerID`, and `Country`.
@@ -10,10 +11,10 @@
 #'   (one extra request per player).
 #' @param split_postseason_result Logical, default `TRUE`. If `TRUE`, return **two**
 #'   separate tibbles: `regular` and `postseason`. If `FALSE`, return a **single tibble**
-#'   combining whatever is included (regular ± postseason) and add `Gcar_real`
+#'   combining whatever is included (regular +/- postseason) and add `Gcar_real`
 #'   reindexed across all rows in chronological order.
 #' @param sleep_sec Seconds to wait between requests (politeness).
-#' @param jitter_sec Random jitter (uniform 0–`jitter_sec`) added to `sleep_sec`.
+#' @param jitter_sec Random jitter (uniform 0$`jitter_sec`) added to `sleep_sec`.
 #' @param overwrite_cache If `TRUE`, force re-download even if cache exists.
 #' @param compression Parquet codec: `"zstd"` (default) or `"snappy"`.
 #' @param verbose If `TRUE`, print status/progress.
@@ -26,7 +27,7 @@
 #' }
 #'
 #' If `split_postseason_result = FALSE`, a single tibble combining all logs
-#' that were requested (regular ± postseason) with an extra `Gcar_real` column
+#' that were requested (regular +/- postseason) with an extra `Gcar_real` column
 #' that reindexes games across the whole career chronologically.
 #'
 #' @examples
@@ -55,7 +56,7 @@ get_career_game_logs <- function(metadata_df,
   md <- metadata_df |>
     dplyr::distinct(PlayerID, .keep_all = TRUE)
 
-#### Estimate maximum number of seasons/pages to scrape ───────────────────── ####
+#### Estimate maximum number of seasons/pages to scrape --------------------- ####
   seasons_per_player <- md$To - md$From + 1L
   total_seasons_est  <- sum(seasons_per_player)
   total_pages_est    <- total_seasons_est + if (isTRUE(include_postseason)) nrow(md) else 0L
@@ -67,7 +68,7 @@ get_career_game_logs <- function(metadata_df,
     msg_parts <- c(
       sprintf("This job may fetch up to %d regular-season pages (if not in cache)", total_seasons_est),
       if (isTRUE(include_postseason)) sprintf(" + %d postseason pages", nrow(md)) else NULL,
-      sprintf(" (≈ %d total).", total_pages_est),
+      sprintf(" ( %d total).", total_pages_est),
       "\nDo you want to continue?"
     )
     msg <- paste0(msg_parts, collapse = "")
@@ -88,13 +89,13 @@ get_career_game_logs <- function(metadata_df,
     pid      <- md$PlayerID[i]
     row_meta <- md[i, , drop = FALSE]
 
-    if (verbose) message("PlayerID: ", pid, " (", row_meta$From, "–", row_meta$To, ")")
+    if (verbose) message("PlayerID: ", pid, " (", row_meta$From, "$", row_meta$To, ")")
 
-    # ── If not overwriting and data exists in parquet, short‑circuit ─────────
+    # -- If not overwriting and data exists in parquet, short-circuit ---------
     # ---------- cache short-circuit -----------------------------------------
     if (!overwrite_cache) {
       if (isTRUE(split_postseason_result) && isTRUE(include_postseason)) {
-        # split AND postseason requested → return list only here
+        # split AND postseason requested -> return list only here
         reg_ds  <- bbgr_parquet_read_player(pid, season_type = "regular",   return = "tibble")
         post_ds <- bbgr_parquet_read_player(pid, season_type = "postseason", return = "tibble")
         if (!is.null(reg_ds) || !is.null(post_ds)) {
@@ -102,14 +103,14 @@ get_career_game_logs <- function(metadata_df,
           next
         }
       } else if (isTRUE(split_postseason_result) && !isTRUE(include_postseason)) {
-        # split requested but postseason = FALSE → return a SINGLE tibble (regular only)
+        # split requested but postseason = FALSE -> return a SINGLE tibble (regular only)
         reg_ds <- bbgr_parquet_read_player(pid, season_type = "regular", return = "tibble")
         if (!is.null(reg_ds)) {
           out_list[[pid]] <- reg_ds
           next
         }
       } else {
-        # non-split mode → single tibble (both or regular)
+        # non-split mode -> single tibble (both or regular)
         if (isTRUE(include_postseason)) {
           combined <- bbgr_parquet_read_player(pid, season_type = "both", return = "tibble")
           if (!is.null(combined)) {
@@ -126,7 +127,7 @@ get_career_game_logs <- function(metadata_df,
       }
     }
 
-    #### Regular season: fetch per-year ─────────────────────────────────────── ####
+    #### Regular season: fetch per-year --------------------------------------- ####
     years <- seq(row_meta$From, row_meta$To)
     reg_years <- vector("list", length(years))
     names(reg_years) <- as.character(years)
@@ -155,7 +156,7 @@ get_career_game_logs <- function(metadata_df,
       dplyr::bind_rows(Filter(Negate(is.null), reg_years))
     } else NULL
 
-    #### ── Postseason (optional) ────────────────────────────────────────────────####
+    #### -- Postseason (optional) ------------------------------------------------####
     post <- NULL
     if (isTRUE(include_postseason)) {
       resp <- httr::GET(.gl_url(pid, yr = 0, postseason = TRUE))
@@ -168,18 +169,18 @@ get_career_game_logs <- function(metadata_df,
       Sys.sleep(sleep_sec + stats::runif(1, 0, jitter_sec))
     }
 
-    # ✅ Close the progress bar and print a done line (after regular + optional postseason)
+    #  Close the progress bar and print a done line (after regular + optional postseason)
     if (!is.null(pb)) close(pb)
-    if (verbose) message(" ✅ Done: ", row_meta$Name, " (", pid, ")")
+    if (verbose) message("  Done: ", row_meta$Name, " (", pid, ")")
 
-    #### Persist what we got to Parquet ─────────────────────────────────────── ####
+    #### Persist what we got to Parquet --------------------------------------- ####
     if (!is.null(reg)  && nrow(reg))  bbgr_parquet_append(reg,  keep_cols = names(reg),  compression = compression)
     if (!is.null(post) && nrow(post)) bbgr_parquet_append(post, keep_cols = names(post), compression = compression)
 
-    #### ── In‑memory cache for split mode ─────────────────────────────────────── ####
+    #### -- In-memory cache for split mode --------------------------------------- ####
     assign(pid, list(regular = reg, postseason = post), envir = bbgr_mem_cache())
 
-    #### ── Return shape ──────────────────────────────────────────────────────── ####
+    #### -- Return shape -------------------------------------------------------- ####
     # ---- choose the per-player result shape (STILL INSIDE THE LOOP) --------
     if (isTRUE(split_postseason_result) && isTRUE(include_postseason)) {
       # list entry with $regular / $postseason

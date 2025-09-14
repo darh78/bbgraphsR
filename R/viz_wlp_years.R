@@ -1,8 +1,7 @@
 #' Scrapes MLB teams winning percentage from fangraphs.com along a period of years (at least 2 consecutive seasons) and visualizes a timeline for each team or franchise along that period
 #'
-#' @param from_season a numeric value, first season you want to analyze (Should be at least a year before the last/current season)
-#' @param until_season a numeric value, last season you want to analyze (Default value is 1 year after the input given in the 'from_season' argument)
-#' @param league a string input, Option for limiting results to different leagues or overall results. Options are "al", "nl", or "all" (default value).
+#' @param start_season a numeric value, first season you want to analyze (Should be at least a year before the last/current season)
+#' @param end_season a numeric value, last season you want to analyze (Default value is 1 year after the input given in the 'start_season' argument)
 #' @param fran_tm a string input, Option for indicating if the plot will be grouped by teams or by franchises (useful if period of season is longer)
 #' @keywords MLB, performance
 #' @importFrom highcharter highchart hchart hc_title hc_subtitle hc_credits hc_yAxis hc_xAxis hc_add_theme hcaes hc_theme_smpl hc_add_series hc_tooltip hc_exporting hc_plotOptions hw_grid
@@ -14,7 +13,10 @@
 #' @importFrom purrr map
 #' @export viz_wlp_years
 #'
-#' @examples viz_wlp_years(2020, 2023)
+#' @examples
+#' \dontrun{
+#' viz_wlp_years(2020, 2023)
+#' }
 
 
 viz_wlp_years <- function(start_season, end_season, fran_tm = "franchise") {

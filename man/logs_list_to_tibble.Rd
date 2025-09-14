@@ -14,7 +14,7 @@ split_postseason_result = TRUE}
 }
 \value{
 A tibble combining all players' logs of the given season type.
-        Returns an empty tibble if no data found.
+Returns an empty tibble if no data found.
 }
 \description{
 Convert get_career_game_logs list output to a single tibble

@@ -15,8 +15,6 @@
 #' @importFrom highcharter hchart hcaes hc_tooltip hc_add_theme hc_theme_smpl hc_xAxis hc_yAxis hc_title hc_subtitle hc_credits hc_exporting hc_add_series hc_annotations
 #'
 #' @examples
-#' viz_rd_team("BOS", 2017, 2022, 2018)
-#' ## returns an RD chart for BOS between 2010-2022, highlighting 2018
 #' \dontrun{
 #' viz_rd_team("TBR", 2019, 2023)
 #' ## returns an RD chart for TBR between 2015-2023, highlighting 2023

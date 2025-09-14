@@ -8,14 +8,14 @@ viz_debut_years(countries, start = NULL, end = NULL)
 }
 \arguments{
 \item{countries}{A character vector of country names (e.g. "Dominican Republic", "Venezuela").
-These names must match the values returned by the `Country` column in the `get_players_by_country()` function.}
+These names must match the values returned by the \code{Country} column in the \code{get_players_by_country()} function.}
 
-\item{start}{Optional. An integer year (e.g. `1990`) to begin the plot. Only debuts from this year onward are shown.}
+\item{start}{Optional. An integer year (e.g. \code{1990}) to begin the plot. Only debuts from this year onward are shown.}
 
-\item{end}{Optional. An integer year (e.g. `2020`) to end the plot. Only debuts up to this year are shown.}
+\item{end}{Optional. An integer year (e.g. \code{2020}) to end the plot. Only debuts up to this year are shown.}
 }
 \value{
-A `ggplot2` object representing the grouped bar chart with annotations and summary table.
+A \code{ggplot2} object representing the grouped bar chart with annotations and summary table.
 }
 \description{
 Fetches MLB player debut data by country and plots a grouped bar chart showing the number of debuts per year.
@@ -23,13 +23,15 @@ Each country is shown as a separate colored column within each year.
 An embedded summary table is also included in the top-left corner of the plot, indicating the peak debut year for each selected country.
 }
 \details{
-- Players with missing debut dates are excluded from the plot.
-- The peak debut year per country is computed and embedded as a `ggtexttable` object on the chart.
-- The X-axis uses a smart sequence of decade-based labels with the first and last year always included.
+\itemize{
+\item Players with missing debut dates are excluded from the plot.
+\item The peak debut year per country is computed and embedded as a \code{ggtexttable} object on the chart.
+\item The X-axis uses a smart sequence of decade-based labels with the first and last year always included.
+}
 }
 \section{Output}{
 
-The plot is saved automatically to `output/mlb_debuts_yearly_grouped.png` (12x8 inches, 320 dpi).
+The plot is saved automatically to \code{output/mlb_debuts_yearly_grouped.png} (12x8 inches, 320 dpi).
 }
 
 \examples{

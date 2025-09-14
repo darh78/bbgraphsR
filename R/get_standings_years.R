@@ -38,7 +38,7 @@ get_standings_years <- function(start_season, end_season) {
 
   # If current year is selected but season likely hasn't started yet
   if (end_season == current_year && as.numeric(format(Sys.Date(), "%m")) < 4) {
-    message("⚠️ Season not started yet. Adjusting end_season to previous year.")
+    message(" Season not started yet. Adjusting end_season to previous year.")
     end_season <- current_year - 1
   }
 
@@ -51,7 +51,7 @@ get_standings_years <- function(start_season, end_season) {
     url <- paste0("https://www.baseball-reference.com/leagues/majors/", year, "-standings.shtml")
     page <- tryCatch(xml2::read_html(url), error = function(e) NULL)
     if (is.null(page)) {
-      warning(paste("❌ Failed to fetch page for", year))
+      warning(paste(" Failed to fetch page for", year))
       return(NULL)
     }
 
@@ -59,7 +59,7 @@ get_standings_years <- function(start_season, end_season) {
     comments <- rvest::html_nodes(page, xpath = "//comment()") |> rvest::html_text()
     expanded_html <- comments[grep("expanded_standings_overall", comments)]
     if (length(expanded_html) == 0) {
-      warning(paste("❌ Expanded standings table not found for", year))
+      warning(paste(" Expanded standings table not found for", year))
       return(NULL)
     }
 

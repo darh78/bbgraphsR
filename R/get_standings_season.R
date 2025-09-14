@@ -6,6 +6,9 @@
 #'   "AL East", "AL Central", "AL West", "AL Overall",
 #'   "NL East", "NL Central", "NL West", "NL Overall", or "MLB".
 #' @param year A numeric value indicating the MLB season year.
+#' @param parallel Logical; if TRUE (default), fetch team results in parallel
+#'   using future.apply with a progress bar; if FALSE, use a sequential
+#'   progress-aware loop.
 #'
 #' @return A data frame containing team standings and game results with columns:
 #'   Game, Date, Team, R, RA, Record, Rank, GB, W, L, Wpct, R_cum, RA_cum, pythWpct, Delta_Wpct_Pyth.
@@ -32,23 +35,23 @@ get_standings_season <- function(lg_div, year, parallel = TRUE) {
     "MLB"
   )
   if (!(lg_div %in% valid_lg_div)) {
-    stop("⚠️ The 'lg_div' argument must be one of these: ", paste(valid_lg_div, collapse = ", "))
+    stop(" The 'lg_div' argument must be one of these: ", paste(valid_lg_div, collapse = ", "))
   }
 
   current_year <- as.numeric(format(Sys.Date(), "%Y"))
   if (!(is.numeric(year) && year >= 1876 && year <= current_year)) {
-    stop(paste0("⚠️ The 'year' must be a numeric value between 1876 and ", current_year))
+    stop(paste0(" The 'year' must be a numeric value between 1876 and ", current_year))
   }
 
   ### Identify teams ----
   if (grepl("AL|NL", lg_div) && grepl("East|Central|West|Overall", lg_div)) {
-    message(paste0("⏳ Retrieving teams that played in ", lg_div, " in ", year, "..."))
+    message(paste0(" Retrieving teams that played in ", lg_div, " in ", year, "..."))
     teams <- baseballr::bref_standings_on_date(paste0(year, "-04-30"), lg_div) |>
       as.data.frame() |>
       dplyr::select(1) |>
       unlist()
   } else if (lg_div == "MLB") {
-    message(paste0("⏳ Retrieving teams that played in MLB in ", year, "..."))
+    message(paste0(" Retrieving teams that played in MLB in ", year, "..."))
     teams_al <- baseballr::bref_standings_on_date(paste0(year, "-04-30"), "AL Overall")
     teams_nl <- baseballr::bref_standings_on_date(paste0(year, "-04-30"), "NL Overall")
     teams <- rbind(teams_al, teams_nl) |>
@@ -58,7 +61,7 @@ get_standings_season <- function(lg_div, year, parallel = TRUE) {
   }
 
   ### Fetch game results ----
-  message("⏳ Fetching games' data ...")
+  message(" Fetching games' data ...")
 
   standings <- NULL
   if (parallel) {

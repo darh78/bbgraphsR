@@ -3,6 +3,9 @@
 #' This function allows you to scrape the standings from MLB teams for a specific season, and visualize one chart of Winning percentage of teams during that season.
 #' @param lg_div a string input, Baseball Reference Team abbreviation or a division (e.g. NL East, NL Central, NL West, NL Overall, AL East, AL Central, AL West, AL Overall or MLB)
 #' @param year a numeric value, MLB season to be analyzed
+#' @param type character, plotting backend to use: either
+#'   "ggplot" (default) for a static ggplot2 chart with team logos,
+#'   or "highcharter" for an interactive Highcharts visualization
 #' @keywords MLB, standings
 #' @importFrom highcharter highchart hchart hc_title hc_subtitle hc_credits hc_yAxis hc_xAxis hc_add_theme hcaes hc_theme_smpl hc_add_series hc_tooltip hc_exporting
 #' @importFrom pbapply pblapply
@@ -194,7 +197,7 @@ viz_wlp_season <- function(lg_div, year, type = "ggplot") {
 
     missing_teams <- setdiff(last_point$Team, valid_teams)
     if (length(missing_teams) > 0) {
-      warning("⚠️ Some teams have no logos available: ", paste(missing_teams, collapse = ", "))}
+      warning(" Some teams have no logos available: ", paste(missing_teams, collapse = ", "))}
 
     last_point <- last_point |> dplyr::filter(Team %in% valid_teams)
 
@@ -210,7 +213,7 @@ viz_wlp_season <- function(lg_div, year, type = "ggplot") {
         x = max(standings_plot$Date) + 2,
         y = 0.5 + spacing * ((n - 1) / 2 - (rank - 1)),  # centered layout
         label = sprintf("%.3f", Wpct),
-        alpha = ifelse(Team %in% leaders$Team, 1, 0.5), # 🔍 Set alpha based on leader status
+        alpha = ifelse(Team %in% leaders$Team, 1, 0.5), #  Set alpha based on leader status
         text_color = ifelse(Wpct >= 0.5, "darkgreen", "firebrick"),
         fontface = ifelse(leader, "bold", "plain")
         )

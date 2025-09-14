@@ -7,19 +7,19 @@
 viz_wlp_years(start_season, end_season, fran_tm = "franchise")
 }
 \arguments{
+\item{start_season}{a numeric value, first season you want to analyze (Should be at least a year before the last/current season)}
+
+\item{end_season}{a numeric value, last season you want to analyze (Default value is 1 year after the input given in the 'start_season' argument)}
+
 \item{fran_tm}{a string input, Option for indicating if the plot will be grouped by teams or by franchises (useful if period of season is longer)}
-
-\item{from_season}{a numeric value, first season you want to analyze (Should be at least a year before the last/current season)}
-
-\item{until_season}{a numeric value, last season you want to analyze (Default value is 1 year after the input given in the 'from_season' argument)}
-
-\item{league}{a string input, Option for limiting results to different leagues or overall results. Options are "al", "nl", or "all" (default value).}
 }
 \description{
 Scrapes MLB teams winning percentage from fangraphs.com along a period of years (at least 2 consecutive seasons) and visualizes a timeline for each team or franchise along that period
 }
 \examples{
+\dontrun{
 viz_wlp_years(2020, 2023)
+}
 }
 \keyword{MLB,}
 \keyword{performance}

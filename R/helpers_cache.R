@@ -1,13 +1,5 @@
-#' Slim a data frame to desired columns (safe drop)
-#'
-#' @param df A data frame or tibble.
-#' @param keep_cols Character vector of column names to keep.
-#' @return A data frame with only the specified columns (in order).
-#' @export
-
+#' Canonical (stable) column order used when returning data
 #' @keywords internal
-# Canonical (stable) column order used when returning data
-# Feel free to trim/reorder to your taste.
 .bbgr_canonical_cols <- c(
   # ids / meta
   "PlayerID","SeasonType","Year","Name","Country","From","To",
@@ -34,9 +26,15 @@ bbgr_slim <- function(df, keep_cols) {
 #' @noRd
 bbgr_mem_cache <- function() .bbg_graphs_cache
 
-# Default parquet cache dir
+#' #' Cache directory used by bbgraphsR
+#'
+#' @description
+#' Returns the path to the package cache directory (platform-specific),
+#' typically under `rappdirs::user_cache_dir("bbgraphsR")`.
+#'
+#' @return A length-1 character vector with the cache directory path.
+#' @seealso [bbgr_open_cache()], [bbgr_parquet_clear()]
 #' @keywords internal
-#' @noRd
 bbgr_parquet_dir <- local({
   dir <- NULL
   function(path = NULL) {
@@ -283,7 +281,19 @@ bbgr_parquet_list <- function() {
     dplyr::arrange(SeasonType, PlayerID)
 }
 
-# Clear parquet cache
+#' Clear Parquet cache on disk
+#'
+#' @description
+#' Deletes Parquet cache files under the package cache directory returned by
+#' [bbgr_parquet_dir()]. If `player_id` is provided, only that player's folder
+#' is removed; otherwise the entire Parquet cache is reset.
+#'
+#' @param player_id Character scalar or `NULL`. Player ID to clear. If `NULL`,
+#'   clears the whole Parquet cache.
+#' @param ask Logical. If `TRUE`, prompt for confirmation when `player_id` is `NULL`.
+#'
+#' @return Invisibly returns `TRUE` when the cache was cleared, `FALSE` if aborted.
+#' @seealso [bbgr_parquet_dir()], [bbgr_open_cache()], [bbgr_clear_all()]
 #' @export
 bbgr_parquet_clear <- function(player_id = NULL, ask = TRUE) {
   root <- bbgr_parquet_dir()
@@ -307,7 +317,19 @@ bbgr_parquet_clear <- function(player_id = NULL, ask = TRUE) {
   invisible(TRUE)
 }
 
-# Clear both caches for player(s)
+#' Clear in-memory and Parquet caches
+#'
+#' @description
+#' Clears the in-memory cache and the on-disk Parquet cache. If `player_ids`
+#' is `NULL`, both caches are fully reset (with confirmation unless `ask = FALSE`).
+#' If a vector of `player_ids` is provided, only those entries are cleared.
+#'
+#' @param player_ids Character vector of Player IDs to clear, or `NULL` for all.
+#' @param ask Logical; ask for confirmation when clearing everything.
+#'
+#' @return Invisibly returns `TRUE` on success.
+#' @seealso [bbgr_parquet_dir()], [bbgr_parquet_clear()], [bbgr_open_cache()]
+#' @export
 bbgr_clear_all <- function(player_ids = NULL, ask = TRUE) {
   if (is.null(player_ids) && isTRUE(ask)) {
     ans <- utils::askYesNo("This will DELETE the entire cache (memory + disk). Continue?")

@@ -11,19 +11,21 @@ get_players_by_country(country)
 }
 \value{
 A data frame with all players listed for each country, including:
-- All columns from the batting table on Baseball Reference
-- A `Country` column
-- `City` and `State` columns extracted from `Birthplace`
+\itemize{
+\item All columns from the batting table on Baseball Reference
+\item A \code{Country} column
+\item \code{City} and \code{State} columns extracted from \code{Birthplace}
+}
 }
 \description{
 Scrapes the Baseball Reference website for a table of all MLB players born
 in the specified countries. The function returns the full table with cleaned
-columns, converts birth dates and debut dates to `Date` class, splits the
+columns, converts birth dates and debut dates to \code{Date} class, splits the
 birthplace into city and state (if available), sorts the players by
-debut date (ascending), and fetches the Baseball Reference unique `PlayerID` for each player
+debut date (ascending), and fetches the Baseball Reference unique \code{PlayerID} for each player
 }
 \details{
-The function accesses pages like `https://www.baseball-reference.com/bio/<country>_born.shtml`.
+The function accesses pages like \verb{https://www.baseball-reference.com/bio/<country>_born.shtml}.
 It handles multiple countries and skips any unavailable pages gracefully.
 }
 \examples{

@@ -6,7 +6,7 @@
 \usage{
 get_career_game_logs(
   metadata_df,
-  include_postseason = TRUE,
+  include_postseason = FALSE,
   split_postseason_result = TRUE,
   sleep_sec = 3,
   jitter_sec = 0.5,
@@ -17,53 +17,51 @@ get_career_game_logs(
 }
 \arguments{
 \item{metadata_df}{A data frame with at least the columns:
-`Name`, `From`, `To`, `PlayerID`, and `Country`.}
+\code{Name}, \code{From}, \code{To}, \code{PlayerID}, and \code{Country}.}
 
-\item{include_postseason}{Logical, default `TRUE`. If `TRUE`, also scrape
-postseason logs (one request per player).}
+\item{include_postseason}{Logical, default \code{FALSE}. If \code{TRUE}, also scrape postseason logs
+(one extra request per player).}
 
-\item{split_postseason_result}{Logical, default `TRUE`. If `TRUE`, the return
-value is a list per player, with separate `regular` and `postseason` tibbles.
-If `FALSE`, only regular season data is returned as a combined tibble.}
+\item{split_postseason_result}{Logical, default \code{TRUE}. If \code{TRUE}, return \strong{two}
+separate tibbles: \code{regular} and \code{postseason}. If \code{FALSE}, return a \strong{single tibble}
+combining whatever is included (regular +/- postseason) and add \code{Gcar_real}
+reindexed across all rows in chronological order.}
 
-\item{sleep_sec}{Number of seconds to wait between requests (to be polite).}
+\item{sleep_sec}{Seconds to wait between requests (politeness).}
 
-\item{jitter_sec}{Random jitter (uniform 0–`jitter_sec`) added to `sleep_sec`.}
+\item{jitter_sec}{Random jitter (uniform 0$\code{jitter_sec}) added to \code{sleep_sec}.}
 
-\item{overwrite_cache}{Logical, default `FALSE`. If `TRUE`, forces re-download
-even if data exists in the Parquet cache.}
+\item{overwrite_cache}{If \code{TRUE}, force re-download even if cache exists.}
 
-\item{compression}{Compression algorithm for Parquet files.
-One of `"zstd"` (default) or `"snappy"`.}
+\item{compression}{Parquet codec: \code{"zstd"} (default) or \code{"snappy"}.}
 
-\item{verbose}{Logical, default `interactive()`. If `TRUE`, prints progress
-messages during scraping and caching.}
+\item{verbose}{If \code{TRUE}, print status/progress.}
 }
 \value{
-If `split_postseason_result = TRUE`, a named list keyed by `PlayerID`, where each
-element is itself a list with `$regular` and `$postseason` tibbles (or `NULL` if absent).
-If `split_postseason_result = FALSE`, a single tibble combining all regular season logs.
+If \code{split_postseason_result = TRUE} (default), a list with two tibbles:
+\describe{
+\item{regular}{All regular-season logs combined.}
+\item{postseason}{All postseason logs combined.}
+}
+
+If \code{split_postseason_result = FALSE}, a single tibble combining all logs
+that were requested (regular +/- postseason) with an extra \code{Gcar_real} column
+that reindexes games across the whole career chronologically.
 }
 \description{
 Downloads and caches batting game logs from Baseball Reference for all players
 in a given metadata data frame. Logs are saved to Parquet cache and also returned
-as R objects. Supports both regular-season and postseason logs.
+as tidy tibbles. Supports both regular-season and postseason logs.
 }
 \examples{
 \dontrun{
-# Example metadata
-players <- tibble::tibble(
-  Name = c("Miguel Cabrera"),
-  From = 2003, To = 2023,
-  PlayerID = "cabremi01",
-  Country = "Venezuela"
-)
+# One tibble: combined reg+post with Gcar_real
+logs <- get_career_game_logs(players, split_postseason_result = FALSE)
 
-# Get logs (both reg + postseason, returned separately)
-logs <- get_career_game_logs(players)
-
-# Convert list of postseason logs into one tibble
-post_tbl <- logs_list_to_tibble(logs, "postseason")
+# Two tibbles: reg and post separately
+logs_split <- get_career_game_logs(players, split_postseason_result = TRUE)
+logs_split$regular
+logs_split$postseason
 }
 
 }

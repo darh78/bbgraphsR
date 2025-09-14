@@ -21,8 +21,6 @@
 #' @return A areaspline-type chart with the accumulated run differential for the Team(s) along the season analyzed
 #'
 #' @examples
-#' viz_rd("AL West", 2021)
-#' ## returns an RD chart for all the AL West Teams in 2021, in descending order
 #' \dontrun{
 #' viz_rd("BOS", 2023)
 #' ## returns an RD chart for Boston Red Sox in the 2023 Season
@@ -33,6 +31,7 @@
 #### Function viz_rd ----
 
 viz_rd <- function(team, year, parallel = TRUE) {
+  on.exit(try(closeAllConnections(), silent = TRUE), add = TRUE)
 
   ### Check if arguments are valid ----
   valid_teams <- c("AL East", "AL Central", "AL West", "AL Overall",
@@ -60,15 +59,15 @@ viz_rd <- function(team, year, parallel = TRUE) {
     cache_file <- file.path(tempdir(), paste0("standings_", gsub(" ", "_", team), "_", year, ".rds"))
 
     if (file.exists(cache_file)) {
-      message("🗂️  Loading standings from cache...")
+      message("  Loading standings from cache...")
       teams_df <- readRDS(cache_file)
     } else {
-      message("🌐 Downloading standings from Baseball Reference...")
+      message(" Downloading standings from Baseball Reference...")
       Sys.sleep(runif(1, 1.5, 3.5))  # Delay to avoid rate limit
       teams_df <- tryCatch({
         baseballr::bref_standings_on_date(paste0(year,"-04-30"), team)
       }, error = function(e) {
-        stop(sprintf("❌ Failed to fetch standings: %s", e$message))
+        stop(sprintf(" Failed to fetch standings: %s", e$message))
       })
       saveRDS(teams_df, cache_file)
     }
@@ -91,15 +90,15 @@ viz_rd <- function(team, year, parallel = TRUE) {
 
       ## Loading the teams, either from the cache or from the page
       if (file.exists(cache_file)) {
-        message(paste0("🗂️  Loading cached standings for ", lg, "..."))
+        message(paste0("  Loading cached standings for ", lg, "..."))
         lg_standings <- readRDS(cache_file)
       } else {
-        message(paste0("🌐 Fetching standings for ", lg, " ..."))
+        message(paste0(" Fetching standings for ", lg, " ..."))
         Sys.sleep(runif(1, 1.5, 3.5))  # random delay
         lg_standings <- tryCatch({
           baseballr::bref_standings_on_date(date = paste0(year, "-04-30"), division = lg)
         }, error = function(e) {
-          stop(sprintf("❌ Failed to retrieve standings for %s — %s", lg, e$message))
+          stop(sprintf(" Failed to retrieve standings for %s % %s", lg, e$message))
         })
         saveRDS(lg_standings, cache_file)
       }
@@ -128,10 +127,10 @@ viz_rd <- function(team, year, parallel = TRUE) {
   cache_file_rd <- file.path(tempdir(), paste0("games_rd_", gsub(" ", "_", team), "_", year, ".rds"))
 
   if (file.exists(cache_file_rd)) {
-    message("🗂️  Loading full run differential data from cache...")
+    message("  Loading full run differential data from cache...")
     rd <- readRDS(cache_file_rd)
   } else {
-    message("🌐 Fetching all game results from Baseball Reference...")
+    message(" Fetching all game results from Baseball Reference...")
 
     # Setup parallel plan if requested
     if (parallel) {

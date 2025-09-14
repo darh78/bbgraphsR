@@ -13,12 +13,12 @@ get_standings_years(start_season, end_season)
 }
 \value{
 A data frame combining expanded standings from all requested seasons.
-Includes a `Year` column indicating the season.
+Includes a \code{Year} column indicating the season.
 }
 \description{
 Scrapes the "expanded standings" table from Baseball-Reference for each season
-between `start_season` and `end_season`. The results are combined into a single
-data frame. Automatically adjusts `end_season` if the current year's standings
+between \code{start_season} and \code{end_season}. The results are combined into a single
+data frame. Automatically adjusts \code{end_season} if the current year's standings
 are not yet available (before April).
 }
 \examples{

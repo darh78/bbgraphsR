@@ -1,3 +1,15 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^LICENSE\.md$
+^\.github$
+^data-raw$
+^\.vscode$
+^workspace\.RData$
+^output$
+^videos$
+^scripts$
+^backup_nonascii$
+^README-cache\.md$
+^tests/Quatro_files$
+^tests/Quatro\.html$
+^tests/Quatro\.qmd$

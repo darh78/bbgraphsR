@@ -2,13 +2,11 @@
 % Please edit documentation in R/helpers_scrape.R
 \name{.keep_only_games}
 \alias{.keep_only_games}
-\title{Keep only actual game rows (drop summaries/totals)}
+\title{Keep only actual game rows (drop headers/totals), robust to Date issues}
 \usage{
 .keep_only_games(df)
 }
 \description{
-Keep only actual game rows (drop summaries/totals)
+Keep only actual game rows (drop headers/totals), robust to Date issues
 }
-\keyword{#'}
-\keyword{@noRd}
 \keyword{internal}
