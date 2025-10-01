@@ -26,6 +26,63 @@ bbgr_slim <- function(df, keep_cols) {
 #' @noRd
 bbgr_mem_cache <- function() .bbg_graphs_cache
 
+#' Normalize column types before writing to Parquet
+#'
+#' Arrow infers column schemas from the incoming data frame. Columns that are
+#' entirely `NA` can accidentally be written as logical or string even though
+#' the canonical schema expects numeric data. This helper coerces known columns
+#' into stable types to prevent schema drift across yearly partitions.
+#'
+#' @keywords internal
+#' @noRd
+.bbgr_normalize_for_parquet <- function(df) {
+  if (!is.data.frame(df) || !nrow(df)) return(df)
+
+  numeric_cols <- c(
+    "Rk","Gcar","Gtm",
+    "PA","AB","R","H","2B","3B","HR","RBI","SB","CS","BB","SO","TB","GIDP","HBP","SH","SF","ROE","IBB",
+    "BAbip","aLI","WPA","acLI","cWPA","RE24","BOP"
+  )
+  integer_cols <- c("Year","From","To")
+  character_cols <- c(
+    "PlayerID","Name","Country","Team","Tm","game_location","Opp","Result","Inngs","Pos","SeasonType"
+  )
+
+  df <- df |>
+    dplyr::mutate(dplyr::across(dplyr::any_of(numeric_cols), as.numeric)) |>
+    dplyr::mutate(dplyr::across(dplyr::any_of(integer_cols), as.integer)) |>
+    dplyr::mutate(dplyr::across(dplyr::any_of(character_cols), as.character))
+
+  if ("Date" %in% names(df) && !inherits(df$Date, "Date")) {
+    suppressWarnings(df$Date <- as.Date(df$Date))
+  }
+
+  df
+}
+
+#' Cached seasons available for a player/season type
+#'
+#' Small helper to inspect which "Year=..." partitions already exist on disk for
+#' a given `PlayerID`. This allows higher-level functions to decide whether a
+#' fresh scrape is actually needed.
+#'
+#' @keywords internal
+#' @noRd
+.bbgr_cached_years <- function(player_id, season_type = c("regular", "postseason")) {
+  season_type <- match.arg(season_type)
+
+  player_root <- file.path(bbgr_parquet_dir(), season_type, paste0("PlayerID=", player_id))
+  if (!dir.exists(player_root)) return(integer())
+
+  year_dirs <- dir(player_root, pattern = "^Year=", full.names = FALSE, recursive = FALSE)
+  if (!length(year_dirs)) return(integer())
+
+  years <- suppressWarnings(as.integer(sub("^Year=", "", year_dirs)))
+  years <- years[!is.na(years)]
+
+  sort(unique(years))
+}
+
 #' #' Cache directory used by bbgraphsR
 #'
 #' @description
@@ -75,6 +132,7 @@ bbgr_parquet_append <- function(df, keep_cols, compression = "zstd") {
   # slim safely
   keep_cols <- intersect(keep_cols, names(df))
   df <- df[keep_cols]
+  df <- .bbgr_normalize_for_parquet(df)
 
   if (!"SeasonType" %in% names(df)) {
     stop("Data frame must include a SeasonType column ('Regular' or 'Postseason').")
