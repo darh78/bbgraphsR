@@ -23,6 +23,7 @@
 #' @importFrom rvest html_nodes html_text html_table
 #' @importFrom dplyr mutate filter bind_rows
 #' @importFrom pbapply pblapply
+#' @importFrom httr GET user_agent http_error status_code content timeout
 #'
 #' @examples
 #' \dontrun{
@@ -49,9 +50,29 @@ get_standings_years <- function(start_season, end_season) {
   fetch_season <- function(year) {
 
     url <- paste0("https://www.baseball-reference.com/leagues/majors/", year, "-standings.shtml")
-    page <- tryCatch(xml2::read_html(url), error = function(e) NULL)
+
+    resp <- tryCatch(
+      httr::GET(
+        url,
+        httr::user_agent("bbgraphsR (https://github.com/davidsdata/bbgraphsR)"),
+        httr::timeout(15)
+      ),
+      error = function(e) NULL
+    )
+
+    if (is.null(resp) || httr::http_error(resp)) {
+      status <- if (!is.null(resp)) httr::status_code(resp) else NA_integer_
+      warning(paste(" Failed to fetch page for", year, "(status:", status, ")"))
+      return(NULL)
+    }
+
+    page <- tryCatch(
+      xml2::read_html(httr::content(resp, "text", encoding = "UTF-8")),
+      error = function(e) NULL
+    )
+
     if (is.null(page)) {
-      warning(paste(" Failed to fetch page for", year))
+      warning(paste(" Failed to parse page for", year))
       return(NULL)
     }
 
@@ -79,6 +100,8 @@ get_standings_years <- function(start_season, end_season) {
     # Convert numeric columns
     num_cols <- setdiff(names(table), c("Year", "Rank", "Team", "Streak")) # Keep text columns as is
     table[num_cols] <- lapply(table[num_cols], function(x) suppressWarnings(as.numeric(gsub("[^0-9.-]", "", x))))
+
+    Sys.sleep(1)
 
     return(table)
   }

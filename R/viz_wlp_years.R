@@ -216,6 +216,35 @@ viz_wlp_years <- function(start_season, end_season, fran_tm = "franchise") {
     ) |>
     dplyr::select(-primary.palette, -secondary.palette)
 
+  # Use a stable team identifier so rebrands stay in a single time series
+  team_labels <- wl |>
+    dplyr::group_by(franchID) |>
+    dplyr::arrange(Season, .by_group = TRUE) |>
+    dplyr::summarise(
+      TeamLabel = {
+        abbrs <- TeamAbbr[!is.na(TeamAbbr)]
+        if (length(abbrs)) abbrs[[1]] else NA_character_
+      },
+      TeamLabelName = {
+        names <- TeamName[!is.na(TeamName)]
+        if (length(names)) names[[1]] else NA_character_
+      },
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(TeamLabel = dplyr::coalesce(TeamLabel, TeamLabelName)) |>
+    dplyr::select(franchID, TeamLabel)
+
+  wl <- wl |>
+    dplyr::left_join(team_labels, by = "franchID") |>
+    dplyr::mutate(
+      TeamAbbr = dplyr::case_when(
+        !is.na(TeamLabel) ~ TeamLabel,
+        TRUE ~ TeamAbbr
+      ),
+      Team = dplyr::coalesce(TeamAbbr, Team)
+    ) |>
+    dplyr::select(-TeamLabel)
+
   # ### Fill in data for current season in the case the Lahman package doesn't have the data for it ----
   #
   # if (is.na(wl[max(wl$Season), 6])) {
@@ -280,14 +309,20 @@ viz_wlp_years <- function(start_season, end_season, fran_tm = "franchise") {
   if (fran_tm == "team") {
     teams_factor <- wl |>
       dplyr::group_by(Team) |>
-      dplyr::summarise(W = sum(W), L = sum(L)) |>
+      dplyr::summarise(
+        W = sum(W, na.rm = TRUE),
+        L = sum(L, na.rm = TRUE)
+      ) |>
       dplyr::mutate(Wp_global = round(W / (W + L), 3)) |>
       dplyr::arrange(dplyr::desc(Wp_global)) |>
       dplyr::filter(!is.na(Team))
   } else if (fran_tm == "franchise") {
     teams_factor <- wl |>
       dplyr::group_by(franchID) |>
-      dplyr::summarise(W = sum(W), L = sum(L)) |>
+      dplyr::summarise(
+        W = sum(W, na.rm = TRUE),
+        L = sum(L, na.rm = TRUE)
+      ) |>
       dplyr::mutate(Wp_global = round(W / (W + L), 3)) |>
       dplyr::arrange(dplyr::desc(Wp_global)) |>
       dplyr::filter(!is.na(franchID))
@@ -327,14 +362,39 @@ viz_wlp_years <- function(start_season, end_season, fran_tm = "franchise") {
       wl_whole <- wl_period[wl_period$franchID == x, ]
     }
 
+    if (!nrow(wl_whole)) {
+      return(NULL)
+    }
+
     # Check if teams_data is empty
     if (nrow(teams_data) == 0) {
       return(NULL) # or handle the error as you see fit
     }
 
+    teams_data <- teams_data |>
+      dplyr::arrange(Season) |>
+      dplyr::distinct(Season, .keep_all = TRUE)
+
     max_wlpct <- max(teams_data$WLpct) # calculate max WL% in a season for the team
     min_wlpct <- min(teams_data$WLpct) # calculate min WL% in a season for the team
-    font_color <- ifelse(teams_data$Wp_global[1] >= 0.5, "darkgreen", "red") # defines the font color for the W% in the subtitle
+    total_w <- dplyr::coalesce(wl_whole$W, 0)
+    total_l <- dplyr::coalesce(wl_whole$L, 0)
+    period_wp <- ifelse((total_w + total_l) > 0,
+      round(total_w / (total_w + total_l), 3),
+      NA_real_
+    )
+    font_color <-
+      if (is.na(period_wp)) "black" else if (period_wp >= 0.5) "darkgreen" else "red"
+
+    period_wp_label <- ifelse(is.na(period_wp), "NA", sprintf("%.3f", period_wp))
+
+    line_color <- teams_data[["primary"]]
+    line_color <- line_color[!is.na(line_color) & nzchar(line_color)]
+    if (!length(line_color)) {
+      line_color <- "#000000"
+    } else {
+      line_color <- line_color[[1]]
+    }
 
     teams_data |>
       # SP line plot representing the W% per season
@@ -344,7 +404,7 @@ viz_wlp_years <- function(start_season, end_season, fran_tm = "franchise") {
         highcharter::hcaes(x = Season, y = WLpct),
         Opacity = 0.9,
         name = "W%",
-        color = teams_data$primary[1],
+        color = line_color,
         zIndex = 10
       ) |>
       highcharter::hc_plotOptions(spline = list(lineWidth = 4)) |> # adjust line width here
@@ -480,7 +540,7 @@ viz_wlp_years <- function(start_season, end_season, fran_tm = "franchise") {
             "): <strong><span style='color: ",
             font_color,
             ";'>",
-            teams_data$Wp_global[1]
+            period_wp_label
           ),
           "</span></strong> (",
           wl_whole$W,
