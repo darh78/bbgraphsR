@@ -11,6 +11,7 @@ get_career_game_logs(
   sleep_sec = 3,
   jitter_sec = 0.5,
   overwrite_cache = FALSE,
+  overwrite_scope = c("smart", "force"),
   compression = c("zstd", "snappy"),
   verbose = interactive()
 )
@@ -32,6 +33,11 @@ reindexed across all rows in chronological order.}
 \item{jitter_sec}{Random jitter (uniform 0$\code{jitter_sec}) added to \code{sleep_sec}.}
 
 \item{overwrite_cache}{If \code{TRUE}, force re-download even if cache exists.}
+
+\item{overwrite_scope}{When \code{overwrite_cache = TRUE}, choose between
+\code{"smart"} (default) to only scrape seasons missing from cache (and refresh
+the most recent season for active players) or \code{"force"} to re-download every
+season regardless of cache state.}
 
 \item{compression}{Parquet codec: \code{"zstd"} (default) or \code{"snappy"}.}
 
