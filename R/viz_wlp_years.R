@@ -379,14 +379,25 @@ viz_wlp_years <- function(start_season, end_season, fran_tm = "franchise") {
     min_wlpct <- min(teams_data$WLpct) # calculate min WL% in a season for the team
     total_w <- dplyr::coalesce(wl_whole$W, 0)
     total_l <- dplyr::coalesce(wl_whole$L, 0)
-    period_wp <- ifelse((total_w + total_l) > 0,
+    period_wp <- ifelse(
+      (total_w + total_l) > 0,
       round(total_w / (total_w + total_l), 3),
       NA_real_
     )
     font_color <-
-      if (is.na(period_wp)) "black" else if (period_wp >= 0.5) "darkgreen" else "red"
+      if (is.na(period_wp)) {
+        "black"
+      } else if (period_wp >= 0.5) {
+        "darkgreen"
+      } else {
+        "red"
+      }
 
-    period_wp_label <- ifelse(is.na(period_wp), "NA", sprintf("%.3f", period_wp))
+    period_wp_label <- ifelse(
+      is.na(period_wp),
+      "NA",
+      sprintf("%.3f", period_wp)
+    )
 
     line_color <- teams_data[["primary"]]
     line_color <- line_color[!is.na(line_color) & nzchar(line_color)]

@@ -1,0 +1,11 @@
+{
+    "editor.fontSize": 11,
+    "workbench.colorTheme": "Default Positron Dark",
+    "workbench.preferredDarkColorTheme": "Default Positron Dark",
+    "workbench.editor.decorations.colors": false,
+    "workbench.preferredHighContrastLightColorTheme": "Tomorrow Night Blue",
+    "workbench.preferredLightColorTheme": "Tomorrow Night Blue",
+    "chatgpt.openOnStartup": true,
+    "window.autoDetectColorScheme": true,
+    "editor.defaultFormatter": "Posit.air-vscode"
+}
