@@ -22,3 +22,6 @@ output/venezuelan_mlb_players_analysis.qmd
 videos/.DS_Store
 videos/Lawrence_Butler_s_walk-off_single_mp4Avc.mp4
 videos/Othani HR in Miami 2024.mp4
+ven_players.rds
+.gitignore
+.gitignore
