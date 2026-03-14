@@ -284,6 +284,11 @@ viz_wlp_years_gg <- function(start_season, end_season, fran_tm = "franchise") {
   plot_x_max <- global_x_max + x_span * 0.15
   plot_y_max <- global_y_max + y_span * 0.22
 
+  logo_anchor_x <- global_x_max + x_span * 0.075
+  logo_anchor_y <- global_y_max + y_span * 0.13
+  logo_width_units <- x_span * 0.06
+  logo_height_units <- y_span * 0.16
+
   postseason_levels <- c("Wild Card", "Won Div", "League Champs", "WS Champs")
   postseason_colors <- c(
     "Wild Card" = "white",
@@ -301,6 +306,118 @@ viz_wlp_years_gg <- function(start_season, end_season, fran_tm = "franchise") {
   )
 
   missing_logos <- character(0)
+
+  valid_logo_codes <- mlbplotR::valid_team_names()
+  alias_abbr <- c(
+    ANA = "LAA",
+    CAL = "LAA",
+    FLA = "MIA",
+    FLO = "MIA",
+    MON = "WSH",
+    WSN = "WSH",
+    WS1 = "MIN",
+    WS2 = "TEX",
+    TBD = "TB",
+    TBA = "TB",
+    KCA = "ATH",
+    KCF = "ATH",
+    PHA = "ATH",
+    PHQ = "ATH",
+    BRO = "LAD",
+    BSN = "ATL",
+    MLN = "ATL",
+    MLA = "ATL",
+    NYG = "SF",
+    NY1 = "SF",
+    NY2 = "SF",
+    SLA = "BAL",
+    SLB = "BAL",
+    SE1 = "MIL"
+  )
+  alias_name <- c(
+    "Montreal Expos" = "WSH",
+    "Florida Marlins" = "MIA",
+    "Tampa Bay Devil Rays" = "TB",
+    "California Angels" = "LAA",
+    "Anaheim Angels" = "LAA",
+    "Los Angeles Angels of Anaheim" = "LAA",
+    "Brooklyn Dodgers" = "LAD",
+    "Boston Braves" = "ATL",
+    "Milwaukee Braves" = "ATL",
+    "Kansas City Athletics" = "ATH",
+    "Philadelphia Athletics" = "ATH",
+    "Washington Senators" = "MIN",
+    "Washington Senators (1961)" = "TEX"
+  )
+  alias_franchise <- c(
+    ANA = "LAA",
+    CAL = "LAA",
+    FLA = "MIA",
+    FLO = "MIA",
+    MON = "WSH",
+    WSN = "WSH",
+    TBD = "TB",
+    TBA = "TB",
+    PHA = "ATH",
+    KCA = "ATH",
+    KCF = "ATH",
+    BRO = "LAD",
+    BSN = "ATL",
+    MLN = "ATL",
+    MLA = "ATL",
+    NYG = "SF",
+    NY1 = "SF",
+    SLA = "BAL",
+    SLB = "BAL",
+    SE1 = "MIL",
+    WS1 = "MIN",
+    WS2 = "TEX"
+  )
+
+  resolve_logo_code <- function(clean_abbr, team_name, franchise, original_abbr = clean_abbr) {
+    lookup_alias <- function(code) {
+      if (is.na(code) || !nzchar(code)) {
+        return(NA_character_)
+      }
+      if (code %in% names(alias_abbr)) {
+        return(alias_abbr[[code]])
+      }
+      code
+    }
+
+    candidate <- lookup_alias(clean_abbr)
+    if (!is.na(candidate) && candidate %in% valid_logo_codes) {
+      return(candidate)
+    }
+
+    raw_candidate <- lookup_alias(original_abbr)
+    if (!is.na(raw_candidate) && raw_candidate %in% valid_logo_codes) {
+      return(raw_candidate)
+    }
+
+    if (!is.na(franchise) && franchise %in% names(alias_franchise)) {
+      alt <- alias_franchise[[franchise]]
+      if (alt %in% valid_logo_codes) {
+        return(alt)
+      }
+    }
+
+    if (!is.na(team_name) && team_name %in% names(alias_name)) {
+      alt <- alias_name[[team_name]]
+      if (alt %in% valid_logo_codes) {
+        return(alt)
+      }
+    }
+
+    if (!is.na(clean_abbr) && clean_abbr %in% valid_logo_codes) {
+      return(clean_abbr)
+    }
+    if (!is.na(original_abbr) && original_abbr %in% valid_logo_codes) {
+      return(original_abbr)
+    }
+
+    NA_character_
+  }
 
   plot_list <- purrr::map(teams_factor, function(x) {
     if (fran_tm == "team") {
@@ -367,37 +484,48 @@ viz_wlp_years_gg <- function(start_season, end_season, fran_tm = "franchise") {
       if (length(labels)) labels[[1]] else x
     }
 
-    season_span <- max(teams_data$Season, na.rm = TRUE) - min(teams_data$Season, na.rm = TRUE)
-    season_span <- ifelse(is.finite(season_span) && season_span > 0, season_span, 1)
-    logo_x <- max(teams_data$Season, na.rm = TRUE) + season_span * 0.12
-
     logo_candidate <- teams_data$TeamAbbr[!is.na(teams_data$TeamAbbr)]
     if (!length(logo_candidate)) {
       logo_candidate <- teams_data$Team[!is.na(teams_data$Team)]
     }
     logo_candidate <- if (length(logo_candidate)) logo_candidate[[1]] else NA_character_
-    logo_abbr <- if (!is.na(logo_candidate)) {
+    logo_name_candidate <- teams_data$TeamName[!is.na(teams_data$TeamName)]
+    logo_name_candidate <- if (length(logo_name_candidate)) {
+      logo_name_candidate[[1]]
+    } else {
+      NA_character_
+    }
+
+    franchise_candidate <- teams_data$franchID[!is.na(teams_data$franchID)]
+    franchise_candidate <- if (length(franchise_candidate)) {
+      franchise_candidate[[1]]
+    } else {
+      NA_character_
+    }
+
+    clean_logo_abbr <- if (!is.na(logo_candidate)) {
       mlbplotR::clean_team_abbrs(logo_candidate, keep_non_matches = TRUE)
     } else {
       NA_character_
     }
 
-    valid_logos <- mlbplotR::valid_team_names()
-    if (is.na(logo_abbr) || !(logo_abbr %in% valid_logos)) {
+    resolved_logo <- resolve_logo_code(
+      clean_abbr = clean_logo_abbr,
+      team_name = logo_name_candidate,
+      franchise = franchise_candidate,
+      original_abbr = logo_candidate
+    )
+
+    if (is.na(resolved_logo)) {
       missing_logos <<- unique(c(missing_logos, display_label))
-      logo_abbr <- NA_character_
     }
 
-    logo_data <- if (!is.na(logo_abbr)) {
+    logo_data <- if (!is.na(resolved_logo)) {
       tibble::tibble(
-        Season = logo_x,
-        WLpct = global_y_max + y_span * 0.12,
-        team_abbr = logo_abbr
-      ) |>
-        dplyr::mutate(
-          Season = Season - season_span * 0.08,
-          WLpct = WLpct - y_span * 0.18
-        )
+        Season = logo_anchor_x,
+        WLpct = logo_anchor_y,
+        team_abbr = resolved_logo
+      )
     } else {
       NULL
     }
@@ -461,7 +589,8 @@ viz_wlp_years_gg <- function(start_season, end_season, fran_tm = "franchise") {
         mlbplotR::geom_mlb_logos(
           data = logo_data,
           ggplot2::aes(x = Season, y = WLpct, team_abbr = team_abbr),
-          width = 0.14,
+          width = logo_width_units,
+          height = logo_height_units,
           inherit.aes = FALSE
         )
     }
